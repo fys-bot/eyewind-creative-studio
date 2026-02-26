@@ -1,0 +1,42 @@
+{
+  "name": "e·-nexus---unified-creative-studio",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host",
+    "server": "node server/server.js",
+    "dev:all": "node server/server.js & vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@google/genai": "latest",
+    "bcryptjs": "^3.0.3",
+    "cors": "^2.8.5",
+    "express": "^5.2.1",
+    "framer-motion": "^12.23.26",
+    "jsonwebtoken": "^9.0.3",
+    "jszip": "3.10.1",
+    "lucide-react": "0.263.1",
+    "multer": "^2.0.2",
+    "react": "18.3.1",
+    "react-dom": "^18.3.1",
+    "sqlite3": "^5.1.7",
+    "uuid": "^13.0.0"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.39.2",
+    "@tailwindcss/postcss": "^4.1.18",
+    "@types/node": "^22.14.0",
+    "@vitejs/plugin-react": "^5.0.0",
+    "autoprefixer": "^10.4.23",
+    "eslint": "^9.39.2",
+    "globals": "^17.0.0",
+    "postcss": "^8.5.6",
+    "tailwindcss": "^4.1.18",
+    "typescript": "~5.8.2",
+    "typescript-eslint": "^8.51.0",
+    "vite": "^6.2.0"
+  }
+}
