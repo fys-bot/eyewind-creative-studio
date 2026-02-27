@@ -1,6 +1,10 @@
 // 模型服务 - 从 AI Gateway 动态获取模型列表
 
-const API_BASE_URL = 'https://ai-gateway.eyewind.com/v1';
+// 在开发环境使用代理，生产环境使用直接URL
+const isDevelopment = import.meta.env.DEV;
+const API_BASE_URL = isDevelopment 
+    ? '/ai-gateway/v1'  // 开发环境使用代理
+    : 'https://ai-gateway.eyewind.com/v1';  // 生产环境直接访问
 
 export interface AIModel {
     id: string;

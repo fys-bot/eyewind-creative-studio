@@ -22,6 +22,13 @@ export default defineConfig(({ mode }) => {
             changeOrigin: true,
             secure: false
           },
+          // Proxy for AI Gateway to bypass CORS
+          '/ai-gateway': {
+            target: 'https://ai-gateway.eyewind.com',
+            changeOrigin: true,
+            secure: false,
+            rewrite: (path) => path.replace(/^\/ai-gateway/, '')
+          },
           // Proxy for Volcengine API to bypass CORS
           '/ark-api': {
             target: 'https://ark.cn-beijing.volces.com',
