@@ -8,6 +8,8 @@ import { generateCharacterReference, requestApiKey, generateImage } from '../../
 import { uploadAsset } from '../../services/storageService'; // Import Upload Service
 import { getNodeContentHeight, getNodeWidth } from '../../utils/nodeUtils';
 import { useToast } from '../ui/ToastContext';
+import { getVideoModels, getAudioModels, getImageModels, getTextModels, AIModel } from '../../services/modelService';
+
 import VideoGenFrames from './toolbar/VideoGenFrames';
 
 interface FloatingToolbarProps {
@@ -44,12 +46,46 @@ const FloatingToolbar: React.FC<FloatingToolbarProps> = ({ node, edges, nodes, u
   const [isReplacing, setIsReplacing] = useState(false); // New state for replace flow
   const [showRunConfirm, setShowRunConfirm] = useState(false); // Confirmation state for re-run
   
+  // 动态模型列表状态
+  const [dynamicModels, setDynamicModels] = useState<AIModel[]>([]);
+  const [isLoadingModels, setIsLoadingModels] = useState(false);
+  
   // Sync local replacing state to node data for visual feedback (grayscale)
   useLayoutEffect(() => {
      if (isReplacing !== !!node.data.isReplacing) {
          updateNodeData({ isReplacing });
      }
   }, [isReplacing]);
+
+  // 加载动态模型列表
+  useEffect(() => {
+    const loadModels = async () => {
+      setIsLoadingModels(true);
+      try {
+        let models: AIModel[] = [];
+        if (node.type === 'video_gen') {
+          models = await getVideoModels();
+        } else if (node.type === 'audio_gen') {
+          models = await getAudioModels();
+        } else if (node.type === 'image_gen' || node.type === 'image_input') {
+          models = await getImageModels();
+        } else if (node.type === 'script_agent' || node.type === 'ai_refine') {
+          models = await getTextModels();
+        }
+        
+        if (models.length > 0) {
+          setDynamicModels(models);
+          console.log(`[FloatingToolbar] Loaded ${models.length} dynamic models for ${node.type}`);
+        }
+      } catch (error) {
+        console.error('[FloatingToolbar] Failed to load models:', error);
+      } finally {
+        setIsLoadingModels(false);
+      }
+    };
+    
+    loadModels();
+  }, [node.type]);
 
   const [showSettingsPopover, setShowSettingsPopover] = useState(false);
   
@@ -264,15 +300,27 @@ const FloatingToolbar: React.FC<FloatingToolbarProps> = ({ node, edges, nodes, u
     if (node.type === 'audio_gen') typeFilter = 'audio';
 
     if (!typeFilter) {
-        return { Google: [], OpenAI: [], Enterprise: [], Industry: [] };
+        return { Google: [], OpenAI: [], Enterprise: [], Industry: [], Gateway: [] };
     }
 
-    const models = MODELS_CONST.filter(m => m.type === typeFilter);
+    // 优先使用动态模型，如果没有则使用本地常量
+    const modelsToUse = dynamicModels.length > 0 ? dynamicModels : MODELS_CONST.filter(m => m.type === typeFilter);
+    
+    // 将动态模型转换为本地格式
+    const formattedModels = modelsToUse.map(m => ({
+      id: m.id,
+      name: m.label || m.id,
+      label: m.label || m.id,
+      type: m.type || typeFilter,
+      provider: m.provider || 'Gateway'
+    }));
+    
     return {
-        Google: models.filter(m => m.provider === 'Google'),
-        OpenAI: models.filter(m => m.provider === 'OpenAI'),
-        Enterprise: models.filter(m => m.provider === 'Enterprise'),
-        Industry: models.filter(m => m.provider === 'Industry')
+        Google: formattedModels.filter(m => m.provider === 'Google'),
+        OpenAI: formattedModels.filter(m => m.provider === 'OpenAI'),
+        Enterprise: formattedModels.filter(m => m.provider === 'Enterprise' || m.provider === 'Eyewind'),
+        Industry: formattedModels.filter(m => m.provider === 'Industry' || m.provider === 'Runway' || m.provider === 'Kling AI' || m.provider === 'Volcengine'),
+        Gateway: formattedModels.filter(m => m.provider === 'Gateway' || !['Google', 'OpenAI', 'Enterprise', 'Eyewind', 'Industry', 'Runway', 'Kling AI', 'Volcengine'].includes(m.provider || ''))
     };
   };
 
@@ -627,6 +675,10 @@ const FloatingToolbar: React.FC<FloatingToolbarProps> = ({ node, edges, nodes, u
                         });
                      }}>
                         {(() => {
+                            if (isLoadingModels) {
+                                return <option disabled>Loading models...</option>;
+                            }
+                            
                             const groups = getRelevantModels();
                             return (
                                 <>
@@ -641,6 +693,9 @@ const FloatingToolbar: React.FC<FloatingToolbarProps> = ({ node, edges, nodes, u
                                     </optgroup>}
                                     {groups.Industry.length > 0 && <optgroup label="Industry">
                                         {groups.Industry.map(m => <option key={m.id} value={m.id}>{m.label}</option>)}
+                                    </optgroup>}
+                                    {groups.Gateway.length > 0 && <optgroup label="AI Gateway">
+                                        {groups.Gateway.map(m => <option key={m.id} value={m.id}>{m.label}</option>)}
                                     </optgroup>}
                                 </>
                             );
