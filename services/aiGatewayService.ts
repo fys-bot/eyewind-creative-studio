@@ -14,7 +14,7 @@ let cachedApiToken: string | null = null;
  */
 const getApiToken = async (): Promise<string> => {
     if (cachedApiToken) {
-        return cachedApiToken;
+        return cachedApiToken || '';
     }
 
     try {
@@ -37,7 +37,7 @@ const getApiToken = async (): Promise<string> => {
             console.log('[AI Gateway] API token retrieved successfully');
         }
         
-        return cachedApiToken;
+        return cachedApiToken || '';
     } catch (error) {
         console.error('[AI Gateway] Error fetching API token:', error);
         return '';

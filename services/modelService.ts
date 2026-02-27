@@ -180,6 +180,18 @@ export const fetchModelsFromGateway = async (): Promise<AIModel[]> => {
             new Map(models.map(m => [m.id, m])).values()
         );
 
+        // 调试日志：显示去重前后的模型
+        if (models.length !== uniqueModels.length) {
+            console.log(`[Model Service] Removed ${models.length - uniqueModels.length} duplicate models`);
+            
+            // 找出重复的模型ID
+            const modelIds = models.map(m => m.id);
+            const duplicates = modelIds.filter((id, index) => modelIds.indexOf(id) !== index);
+            if (duplicates.length > 0) {
+                console.log('[Model Service] Duplicate model IDs:', [...new Set(duplicates)]);
+            }
+        }
+
         cachedModels = uniqueModels;
         lastFetchTime = now;
         
