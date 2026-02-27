@@ -1,6 +1,6 @@
 
 import React, { useRef, useState, useLayoutEffect, useEffect } from 'react';
-import { AlertCircle, Upload, Sparkles, Loader2, Zap, ChevronDown, ChevronUp, Mic, Megaphone, RectangleHorizontal, RectangleVertical, MonitorPlay, Tablet, Square, Gamepad2, Clapperboard, Feather, Briefcase, Map, Headphones, Palette, Globe, Activity, Users, Bug, X, Music, Video, RefreshCcw, Link2, Plus, UserCog, Layers, Volume2, Network } from 'lucide-react';
+import { AlertCircle, Upload, Sparkles, Loader2, Zap, ChevronDown, ChevronUp, Mic, Megaphone, RectangleHorizontal, RectangleVertical, MonitorPlay, Tablet, Square, Gamepad2, Clapperboard, Feather, Briefcase, Map as MapIcon, Headphones, Palette, Globe, Activity, Users, Bug, X, Music, Video, RefreshCcw, Link2, Plus, UserCog, Layers, Volume2, Network } from 'lucide-react';
 import { WorkflowNode, WorkflowEdge, AspectRatio, ModelType, Resolution } from '../../types';
 import { MODELS as MODELS_CONST, ASPECT_RATIOS as ASPECT_RATIOS_CONST, BASIC_ASPECT_RATIOS, AUDIO_VOICES as AUDIO_VOICES_CONST, AUDIO_CATEGORIES, RESOLUTIONS, IMAGE_RESOLUTIONS, DURATIONS, AGENT_ROLES } from '../../constants';
 import { translations, Language } from '../../utils/translations';
@@ -306,7 +306,7 @@ const FloatingToolbar: React.FC<FloatingToolbarProps> = ({ node, edges, nodes, u
     // 优先使用动态模型，如果没有则使用本地常量
     const modelsToUse = dynamicModels.length > 0 ? dynamicModels : MODELS_CONST.filter(m => m.type === typeFilter);
     
-    // 将动态模型转换为本地格式
+    // 将动态模型转换为本地格式并去重
     const formattedModels = modelsToUse.map(m => ({
       id: m.id,
       name: m.label || m.id,
@@ -315,12 +315,17 @@ const FloatingToolbar: React.FC<FloatingToolbarProps> = ({ node, edges, nodes, u
       provider: m.provider || 'Gateway'
     }));
     
+    // 使用Map去重，确保每个模型ID只出现一次
+    const uniqueModels = Array.from(
+      new Map(formattedModels.map(m => [m.id, m])).values()
+    );
+    
     return {
-        Google: formattedModels.filter(m => m.provider === 'Google'),
-        OpenAI: formattedModels.filter(m => m.provider === 'OpenAI'),
-        Enterprise: formattedModels.filter(m => m.provider === 'Enterprise' || m.provider === 'Eyewind'),
-        Industry: formattedModels.filter(m => m.provider === 'Industry' || m.provider === 'Runway' || m.provider === 'Kling AI' || m.provider === 'Volcengine'),
-        Gateway: formattedModels.filter(m => m.provider === 'Gateway' || !['Google', 'OpenAI', 'Enterprise', 'Eyewind', 'Industry', 'Runway', 'Kling AI', 'Volcengine'].includes(m.provider || ''))
+        Google: uniqueModels.filter(m => m.provider === 'Google'),
+        OpenAI: uniqueModels.filter(m => m.provider === 'OpenAI'),
+        Enterprise: uniqueModels.filter(m => m.provider === 'Enterprise' || m.provider === 'Eyewind'),
+        Industry: uniqueModels.filter(m => m.provider === 'Industry' || m.provider === 'Runway' || m.provider === 'Kling AI' || m.provider === 'Volcengine'),
+        Gateway: uniqueModels.filter(m => m.provider === 'Gateway' || !['Google', 'OpenAI', 'Enterprise', 'Eyewind', 'Industry', 'Runway', 'Kling AI', 'Volcengine'].includes(m.provider || ''))
     };
   };
 
@@ -549,7 +554,7 @@ const FloatingToolbar: React.FC<FloatingToolbarProps> = ({ node, edges, nodes, u
       switch(roleId) {
           case 'producer': return <Briefcase size={14} />;
           case 'game_designer': return <Gamepad2 size={14} />;
-          case 'level_designer': return <Map size={14} />;
+          case 'level_designer': return <MapIcon size={14} />;
           case 'art_director': return <Palette size={14} />;
           case 'sound_designer': return <Headphones size={14} />;
           case 'publisher': return <Globe size={14} />;
@@ -601,10 +606,23 @@ const FloatingToolbar: React.FC<FloatingToolbarProps> = ({ node, edges, nodes, u
 
           <div className="mb-3 relative z-10">
               <div className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-2">Duration</div>
-              <div className="flex gap-1.5">
+              <div className="flex gap-1.5 items-center">
                   {DURATIONS.map(d => (
                       <button key={d.value} onClick={() => updateNodeData({ settings: { ...node.data.settings, duration: d.value }})} className={`flex-1 py-1.5 rounded-lg text-xs font-bold border transition-all ${node.data.settings?.duration === d.value ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 shadow-sm' : 'border-transparent bg-gray-50 dark:bg-gray-700/50 hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300'}`}>{d.label}</button>
                   ))}
+                  <input 
+                      type="number" 
+                      min="1" 
+                      max="120"
+                      value={node.data.settings?.duration || 4}
+                      onChange={(e) => {
+                          const val = parseInt(e.target.value) || 4;
+                          updateNodeData({ settings: { ...node.data.settings, duration: val }});
+                      }}
+                      className="w-16 px-2 py-1.5 rounded-lg text-xs font-bold border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      placeholder="自定义"
+                  />
+                  <span className="text-xs text-gray-400">s</span>
               </div>
           </div>
 
@@ -1351,9 +1369,9 @@ const FloatingToolbar: React.FC<FloatingToolbarProps> = ({ node, edges, nodes, u
         
         {/* 错误信息 */}
         {node.status === 'error' && node.errorMessage && (
-            <div className="px-4 py-2 bg-red-50 dark:bg-red-900/30 border-t border-red-100 dark:border-red-900 text-[10px] text-red-600 dark:text-red-400 font-medium flex items-center gap-1.5 animate-in slide-in-from-top-1">
-                <div className="w-1 h-1 rounded-full bg-red-500 shrink-0"></div>
-                <span className="truncate">{node.errorMessage}</span>
+            <div className="px-4 py-2 bg-red-50 dark:bg-red-900/30 border-t border-red-100 dark:border-red-900 text-[10px] text-red-600 dark:text-red-400 font-medium flex items-start gap-1.5 animate-in slide-in-from-top-1">
+                <div className="w-1 h-1 rounded-full bg-red-500 shrink-0 mt-1"></div>
+                <span className="break-words whitespace-pre-wrap flex-1">{node.errorMessage}</span>
             </div>
         )}
 

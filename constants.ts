@@ -78,8 +78,8 @@ export const IMAGE_RESOLUTIONS = [
 
 export const DURATIONS = [
     { value: 4, label: '4s' },
-    { value: 8, label: '8s' },
-    { value: 12, label: '12s' } // Seedance supports up to 12s
+    { value: 6, label: '6s' },
+    { value: 8, label: '8s' }
 ];
 
 export const AUDIO_VOICES = [

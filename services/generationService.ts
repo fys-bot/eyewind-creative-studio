@@ -72,24 +72,10 @@ export const generateVideo = async (config: VideoConfig & { characterNames?: str
         return simulateGeneration(actualModel, 'video', config.prompt);
     }
 
-    // 检查是否是从AI Gateway获取的模型（不包含已知的provider前缀）
-    const isGatewayModel = !actualModel.includes('veo') && 
-                          !actualModel.includes('doubao') && 
-                          !actualModel.includes('seedance') &&
-                          !actualModel.includes('google');
-
-    // AI Gateway 路由 - 用于从gateway动态获取的模型
-    if (isGatewayModel) {
-        console.log('[Generation Service] Using AI Gateway for model:', actualModel);
-        return AIGatewayProvider.generateVideoViaGateway({
-            model: actualModel,
-            prompt: config.prompt,
-            aspectRatio: config.aspectRatio,
-            resolution: config.resolution,
-            duration: config.durationSeconds || 5
-        });
-    }
-
+    // 检查是否应该使用 AI Gateway
+    // 策略：如果模型ID包含特定的provider标识，使用对应的provider
+    // 否则，默认使用 AI Gateway（因为模型是从gateway动态获取的）
+    
     // Volcengine / Doubao Video Routing
     if (actualModel.includes('doubao') || actualModel.includes('seedance')) {
         const volcConfig = getProviderConfig('volcengine');
@@ -121,18 +107,30 @@ export const generateVideo = async (config: VideoConfig & { characterNames?: str
         });
     }
 
-    // Google Veo 路由
-    // 业务逻辑：Prompt 增强
-    const finalPrompt = PROMPTS.VIDEO_GENERATION(config.prompt, config.characterNames || []);
+    // Google Veo 路由 - 仅当模型明确包含 'veo' 且包含 'google' 或 'gemini' 时
+    if (actualModel.includes('veo') && (actualModel.includes('google') || actualModel.includes('gemini'))) {
+        // 业务逻辑：Prompt 增强
+        const finalPrompt = PROMPTS.VIDEO_GENERATION(config.prompt, config.characterNames || []);
 
-    return GoogleProvider.googleGenerateVideo({
+        return GoogleProvider.googleGenerateVideo({
+            model: actualModel,
+            prompt: finalPrompt,
+            aspectRatio: config.aspectRatio,
+            resolution: config.resolution,
+            durationSeconds: config.durationSeconds || 5,
+            startImage: config.startImage,
+            endImage: config.endImage
+        });
+    }
+
+    // 默认使用 AI Gateway - 所有其他模型（包括从gateway获取的veo, runway, kling等）
+    console.log('[Generation Service] Using AI Gateway for model:', actualModel);
+    return AIGatewayProvider.generateVideoViaGateway({
         model: actualModel,
-        prompt: finalPrompt,
+        prompt: config.prompt,
         aspectRatio: config.aspectRatio,
         resolution: config.resolution,
-        durationSeconds: config.durationSeconds || 5,
-        startImage: config.startImage,
-        endImage: config.endImage
+        duration: config.durationSeconds || 4
     });
 };
 
