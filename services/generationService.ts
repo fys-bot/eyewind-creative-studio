@@ -277,7 +277,7 @@ export const generateSpeech = async (config: AudioConfig): Promise<string> => {
         return simulateGeneration(actualModel, 'audio', config.text);
     }
 
-    // OpenAI Routing
+    // OpenAI TTS Routing
     if (actualModel.startsWith('tts-1')) {
         return OpenAIProvider.openaiGenerateSpeech({
             model: actualModel,
@@ -286,9 +286,20 @@ export const generateSpeech = async (config: AudioConfig): Promise<string> => {
         });
     }
 
-    return GoogleProvider.googleGenerateSpeech({
-         model: actualModel,
-         text: config.text,
-         voice: config.voice
-     });
+    // Google TTS Routing - 仅当模型明确包含 'gemini' 或 'google' 时
+    if (actualModel.includes('gemini') || actualModel.includes('google')) {
+        return GoogleProvider.googleGenerateSpeech({
+            model: actualModel,
+            text: config.text,
+            voice: config.voice
+        });
+    }
+
+    // 默认使用 AI Gateway - 所有其他音频模型
+    console.log('[Generation Service] Using AI Gateway for audio model:', actualModel);
+    return AIGatewayProvider.generateAudioViaGateway({
+        model: actualModel,
+        text: config.text,
+        voice: config.voice
+    });
 };
