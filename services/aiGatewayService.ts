@@ -236,9 +236,16 @@ export const generateAudioViaGateway = async (params: {
             headers['Authorization'] = `Bearer ${apiToken}`;
         }
 
+        // 确保文本至少 10 个字符
+        let textContent = params.text;
+        if (textContent.length < 10) {
+            textContent = textContent + '，请为我生成这段音频内容。';
+        }
+
         const requestBody: any = {
             model: params.model,
-            prompt: params.text,  // 使用 prompt 而不是 input
+            prompt: textContent,
+            lyrics: textContent,  // lyrics 也需要至少 10 个字符
         };
         
         if (params.voice) {
