@@ -1,7 +1,7 @@
 // AI Gateway 服务 - 统一的API调用接口
 
 // 在开发环境使用代理，生产环境使用直接URL
-const isDevelopment = import.meta.env.DEV;
+const isDevelopment = (import.meta as any).env?.DEV || false;
 const API_BASE_URL = isDevelopment 
     ? '/ai-gateway/v1'
     : 'https://ai-gateway.eyewind.com/v1';
