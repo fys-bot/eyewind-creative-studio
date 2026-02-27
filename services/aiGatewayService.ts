@@ -245,11 +245,13 @@ export const generateAudioViaGateway = async (params: {
         const requestBody: any = {
             model: params.model,
             prompt: textContent,
-            lyrics: textContent,  // lyrics 也需要至少 10 个字符
+            format: 'mp3',  // 默认格式
+            duration: 30,   // 默认时长 30 秒
         };
         
-        if (params.voice) {
-            requestBody.voice = params.voice;
+        // 如果有 lyrics，添加到请求中（用于音乐生成）
+        if (textContent) {
+            requestBody.lyrics = textContent;
         }
 
         console.log('[AI Gateway] Generating audio:', requestBody);
