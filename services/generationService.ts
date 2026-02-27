@@ -130,7 +130,8 @@ export const generateVideo = async (config: VideoConfig & { characterNames?: str
         prompt: config.prompt,
         aspectRatio: config.aspectRatio,
         resolution: config.resolution,
-        duration: config.durationSeconds || 4
+        duration: config.durationSeconds || 4,
+        referenceImage: config.startImage  // 添加起始图片支持
     });
 };
 

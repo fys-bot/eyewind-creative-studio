@@ -53,6 +53,7 @@ export const generateVideoViaGateway = async (params: {
     aspectRatio?: string;
     resolution?: string;
     duration?: number;
+    referenceImage?: string;  // 添加参考图片支持
 }): Promise<string> => {
     try {
         const apiToken = await getApiToken();
@@ -92,6 +93,9 @@ export const generateVideoViaGateway = async (params: {
         }
         if (adjustedDuration) {
             requestBody.duration = adjustedDuration;
+        }
+        if (params.referenceImage) {
+            requestBody.reference_image = params.referenceImage;
         }
 
         console.log('[AI Gateway] Generating video:', requestBody);
