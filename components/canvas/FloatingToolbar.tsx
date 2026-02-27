@@ -1471,6 +1471,40 @@ const FloatingToolbar: React.FC<FloatingToolbarProps> = ({ node, edges, nodes, u
 
              {node.type === 'audio_gen' && (
                  <>
+                     <div className="relative group w-32">
+                         <div className="absolute left-2 top-1/2 -translate-y-1/2 pointer-events-none text-gray-400">
+                             <Headphones size={12}/>
+                         </div>
+                         <select 
+                             className="w-full bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 text-xs font-bold text-gray-700 dark:text-gray-200 rounded-lg pl-7 pr-5 py-1.5 outline-none appearance-none cursor-pointer hover:border-blue-300 dark:hover:border-blue-700 transition-all focus:border-blue-500/50 shadow-sm" 
+                             value={node.data.settings?.model || 'gpt-4o-audio-preview'} 
+                             onChange={(e) => updateNodeData({ settings: { ...node.data.settings, model: e.target.value }})}
+                         >
+                             {(() => {
+                                 if (isLoadingModels) {
+                                     return <option disabled>Loading...</option>;
+                                 }
+                                 
+                                 const groups = getRelevantModels();
+                                 return (
+                                     <>
+                                         {groups.Google.length > 0 && <optgroup label="Google">
+                                             {groups.Google.map(m => <option key={m.id} value={m.id}>{m.label}</option>)}
+                                         </optgroup>}
+                                         {groups.OpenAI.length > 0 && <optgroup label="OpenAI">
+                                             {groups.OpenAI.map(m => <option key={m.id} value={m.id}>{m.label}</option>)}
+                                         </optgroup>}
+                                         {groups.Gateway.length > 0 && <optgroup label="AI Gateway">
+                                             {groups.Gateway.map(m => <option key={m.id} value={m.id}>{m.label}</option>)}
+                                         </optgroup>}
+                                     </>
+                                 );
+                             })()}
+                         </select>
+                         <div className="absolute right-1 top-1/2 -translate-y-1/2 pointer-events-none text-gray-400">
+                             <ChevronDown size={10} />
+                         </div>
+                     </div>
                      <div className="relative group w-24">
                          <div className="absolute left-2 top-1/2 -translate-y-1/2 pointer-events-none text-gray-400">
                              <Volume2 size={12}/>

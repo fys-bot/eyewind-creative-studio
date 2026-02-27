@@ -238,7 +238,7 @@ export const generateAudioViaGateway = async (params: {
 
         const requestBody: any = {
             model: params.model,
-            input: params.text,
+            prompt: params.text,  // 使用 prompt 而不是 input
         };
         
         if (params.voice) {

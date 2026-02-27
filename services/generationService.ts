@@ -30,11 +30,11 @@ const resolveModel = (model: string | undefined, type: 'video' | 'image' | 'text
         }
         return model;
     }
-    // Default fallbacks
-    if (type === 'video') return 'veo-3.1-fast-generate-preview';
+    // Default fallbacks - 优先使用 AI Gateway 模型
+    if (type === 'video') return 'veo-3.1-i2v'; // AI Gateway 默认视频模型
     if (type === 'image') return 'gemini-2.5-flash-image';
     if (type === 'text') return 'gemini-3-flash-preview';
-    if (type === 'audio') return 'gemini-2.5-flash-preview-tts';
+    if (type === 'audio') return 'gpt-4o-audio-preview'; // AI Gateway 默认音频模型
     return '';
 };
 
