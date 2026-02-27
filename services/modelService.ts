@@ -18,10 +18,53 @@ interface ModelsResponse {
     data: AIModel[];
 }
 
+interface ApiSpec {
+    api_token?: string;
+    components?: any;
+}
+
 // 缓存模型列表
 let cachedModels: AIModel[] | null = null;
 let lastFetchTime = 0;
 const CACHE_DURATION = 5 * 60 * 1000; // 5分钟缓存
+
+// 缓存API token
+let cachedApiToken: string | null = null;
+
+/**
+ * 从 API Spec 获取 API Token
+ */
+const getApiToken = async (): Promise<string> => {
+    if (cachedApiToken) {
+        return cachedApiToken;
+    }
+
+    try {
+        const response = await fetch(`${API_BASE_URL}/api-spec`, {
+            method: 'GET',
+            headers: {
+                'Content-Type': 'application/json',
+            }
+        });
+
+        if (!response.ok) {
+            console.warn('[Model Service] Failed to fetch API spec, using without token');
+            return '';
+        }
+
+        const spec: ApiSpec = await response.json();
+        cachedApiToken = spec.api_token || '';
+        
+        if (cachedApiToken) {
+            console.log('[Model Service] API token retrieved successfully');
+        }
+        
+        return cachedApiToken;
+    } catch (error) {
+        console.error('[Model Service] Error fetching API token:', error);
+        return '';
+    }
+}
 
 /**
  * 从 AI Gateway 获取模型列表
@@ -34,15 +77,25 @@ export const fetchModelsFromGateway = async (): Promise<AIModel[]> => {
     }
 
     try {
+        // 获取API token
+        const apiToken = await getApiToken();
+        
+        const headers: HeadersInit = {
+            'Content-Type': 'application/json',
+        };
+        
+        // 如果有token，添加到请求头
+        if (apiToken) {
+            headers['Authorization'] = `Bearer ${apiToken}`;
+        }
+
         const response = await fetch(`${API_BASE_URL}/models`, {
             method: 'GET',
-            headers: {
-                'Content-Type': 'application/json',
-            }
+            headers
         });
 
         if (!response.ok) {
-            throw new Error(`Failed to fetch models: ${response.status}`);
+            throw new Error(`Failed to fetch models: ${response.status} ${response.statusText}`);
         }
 
         const data: ModelsResponse = await response.json();
@@ -173,4 +226,6 @@ export const getTextModels = async (): Promise<AIModel[]> => {
 export const clearModelCache = () => {
     cachedModels = null;
     lastFetchTime = 0;
+    cachedApiToken = null;
+    console.log('[Model Service] Cache cleared');
 };
