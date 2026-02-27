@@ -110,10 +110,11 @@ export const generateVideoViaGateway = async (params: {
 
         const data = await response.json();
         
-        // 处理异步任务
-        if (data.job_id) {
-            console.log('[AI Gateway] Video generation job created:', data.job_id);
-            return await pollVideoJob(data.job_id, apiToken);
+        // 处理异步任务 - 支持 job_id 或 id 字段
+        const jobId = data.job_id || data.id;
+        if (jobId) {
+            console.log('[AI Gateway] Video generation job created:', jobId);
+            return await pollVideoJob(jobId, apiToken);
         }
         
         // 直接返回结果
@@ -270,10 +271,11 @@ export const generateAudioViaGateway = async (params: {
 
         const data = await response.json();
         
-        // 处理异步任务
-        if (data.job_id) {
-            console.log('[AI Gateway] Audio generation job created:', data.job_id);
-            return await pollAudioJob(data.job_id, apiToken);
+        // 处理异步任务 - 支持 job_id 或 id 字段
+        const jobId = data.job_id || data.id;
+        if (jobId) {
+            console.log('[AI Gateway] Audio generation job created:', jobId);
+            return await pollAudioJob(jobId, apiToken);
         }
         
         // 直接返回结果
