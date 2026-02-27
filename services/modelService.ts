@@ -175,11 +175,16 @@ export const fetchModelsFromGateway = async (): Promise<AIModel[]> => {
             };
         });
 
-        cachedModels = models;
+        // 去重：使用模型ID作为唯一标识
+        const uniqueModels = Array.from(
+            new Map(models.map(m => [m.id, m])).values()
+        );
+
+        cachedModels = uniqueModels;
         lastFetchTime = now;
         
-        console.log(`[Model Service] Fetched ${models.length} models from gateway`);
-        return models;
+        console.log(`[Model Service] Fetched ${uniqueModels.length} unique models from gateway (${models.length} total)`);
+        return uniqueModels;
     } catch (error) {
         console.error('[Model Service] Failed to fetch models:', error);
         

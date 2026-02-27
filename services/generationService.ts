@@ -4,6 +4,7 @@ import { PROMPTS } from "../utils/promptRegistry";
 import * as GoogleProvider from "./geminiService";
 import * as OpenAIProvider from "./openaiService";
 import * as VolcengineProvider from "./volcengineService";
+import * as AIGatewayProvider from "./aiGatewayService";
 import { capabilityResolver } from "./litellm";
 
 // Helper to get provider config
@@ -71,6 +72,24 @@ export const generateVideo = async (config: VideoConfig & { characterNames?: str
         return simulateGeneration(actualModel, 'video', config.prompt);
     }
 
+    // 检查是否是从AI Gateway获取的模型（不包含已知的provider前缀）
+    const isGatewayModel = !actualModel.includes('veo') && 
+                          !actualModel.includes('doubao') && 
+                          !actualModel.includes('seedance') &&
+                          !actualModel.includes('google');
+
+    // AI Gateway 路由 - 用于从gateway动态获取的模型
+    if (isGatewayModel) {
+        console.log('[Generation Service] Using AI Gateway for model:', actualModel);
+        return AIGatewayProvider.generateVideoViaGateway({
+            model: actualModel,
+            prompt: config.prompt,
+            aspectRatio: config.aspectRatio,
+            resolution: config.resolution,
+            duration: config.durationSeconds || 5
+        });
+    }
+
     // Volcengine / Doubao Video Routing
     if (actualModel.includes('doubao') || actualModel.includes('seedance')) {
         const volcConfig = getProviderConfig('volcengine');
@@ -102,6 +121,7 @@ export const generateVideo = async (config: VideoConfig & { characterNames?: str
         });
     }
 
+    // Google Veo 路由
     // 业务逻辑：Prompt 增强
     const finalPrompt = PROMPTS.VIDEO_GENERATION(config.prompt, config.characterNames || []);
 
