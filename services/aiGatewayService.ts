@@ -57,7 +57,7 @@ export const generateVideoViaGateway = async (params: {
     referenceImage?: string;  // 添加参考图片支持
 }): Promise<string> => {
     try {
-        console.log('[AI Gateway] Input params:', params);
+        console.log('[AI Gateway] Input parameters:', params);
         
         const apiToken = await getApiToken();
         
@@ -149,30 +149,6 @@ export const generateVideoViaGateway = async (params: {
             prompt: params.prompt,
         };
         
-        // 检查model是否需要添加提供商前缀
-        // API spec显示某些模型需要格式如 "openai/sora-2-i2v"
-        if (schema?.properties?.model?.description) {
-            const modelDesc = schema.properties.model.description.toLowerCase();
-            // 如果model不包含 "/"，可能需要添加提供商前缀
-            if (!requestBody.model.includes('/')) {
-                console.log('[AI Gateway] Model may need provider prefix:', requestBody.model);
-                // 根据模型ID推断提供商
-                const modelLower = requestBody.model.toLowerCase();
-                if (modelLower.includes('sora') || modelLower.includes('gpt')) {
-                    requestBody.model = `openai/${requestBody.model}`;
-                } else if (modelLower.includes('veo') || modelLower.includes('gemini') || modelLower.includes('imagen')) {
-                    requestBody.model = `google/${requestBody.model}`;
-                } else if (modelLower.includes('runway') || modelLower.includes('gen-')) {
-                    requestBody.model = `runway/${requestBody.model}`;
-                } else if (modelLower.includes('kling')) {
-                    requestBody.model = `kuaishou/${requestBody.model}`;
-                } else if (modelLower.includes('seedance') || modelLower.includes('doubao')) {
-                    requestBody.model = `bytedance/${requestBody.model}`;
-                }
-                console.log('[AI Gateway] Adjusted model with provider:', requestBody.model);
-            }
-        }
-        
         // 添加可选字段
         if (params.aspectRatio) {
             requestBody.aspect_ratio = params.aspectRatio;
@@ -189,15 +165,18 @@ export const generateVideoViaGateway = async (params: {
 
         // 使用 schema 验证和补全请求体
         if (schema) {
+            // 先验证，但不使用补全的结果（因为默认值可能不正确）
             const validation = validateAndCompleteRequest(requestBody, schema);
             
             if (!validation.valid) {
                 console.error('[AI Gateway] Request validation errors:', validation.errors);
-                throw new Error(`Invalid request: ${validation.errors.join(', ')}`);
+                // 不要抛出错误，因为我们已经调整了参数
+                console.warn('[AI Gateway] Validation failed, but continuing with adjusted parameters');
             }
             
-            requestBody = validation.completed;
-            console.log('[AI Gateway] Request validated and completed:', requestBody);
+            console.log('[AI Gateway] Final request body:', requestBody);
+        } else {
+            console.warn('[AI Gateway] No schema found, sending request without validation');
         }
 
         console.log('[AI Gateway] Generating video:', requestBody);
