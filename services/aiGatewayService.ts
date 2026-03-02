@@ -70,20 +70,38 @@ export const generateVideoViaGateway = async (params: {
         // 获取 API 规范中的 schema
         const schema = await getEndpointSchema('/v1/videos/generations', 'post');
         
+        console.log('[AI Gateway] Schema properties:', schema?.properties);
+        
         // 根据不同模型调整 duration 值
-        let adjustedDuration = params.duration || 5;
+        let adjustedDuration: number | string = params.duration || 5;
         
         // 如果有 schema，使用 schema 中的枚举值
         if (schema?.properties?.duration?.enum) {
             const validDurations = schema.properties.duration.enum;
             console.log('[AI Gateway] Valid durations from API spec:', validDurations);
+            console.log('[AI Gateway] Original duration:', params.duration);
             
-            // 找到最接近的有效值
-            adjustedDuration = validDurations.reduce((prev: number, curr: number) => {
-                return Math.abs(curr - adjustedDuration) < Math.abs(prev - adjustedDuration) ? curr : prev;
-            });
+            // 将 duration 转换为字符串（API 可能要求字符串格式）
+            const durationStr = String(adjustedDuration);
             
-            console.log(`[AI Gateway] Adjusted duration from ${params.duration} to ${adjustedDuration}`);
+            // 检查是否在有效列表中
+            if (!validDurations.includes(durationStr) && !validDurations.includes(adjustedDuration)) {
+                // 找到最接近的有效值
+                const numericDurations = validDurations.map((d: any) => typeof d === 'string' ? parseInt(d) : d);
+                const currentDuration = typeof adjustedDuration === 'string' ? parseInt(adjustedDuration) : adjustedDuration;
+                const closestDuration = numericDurations.reduce((prev: number, curr: number) => {
+                    return Math.abs(curr - currentDuration) < Math.abs(prev - currentDuration) ? curr : prev;
+                });
+                
+                // 使用原始格式（字符串或数字）
+                adjustedDuration = validDurations.find((d: any) => 
+                    (typeof d === 'string' ? parseInt(d) : d) === closestDuration
+                ) || closestDuration;
+            } else if (validDurations.includes(durationStr)) {
+                adjustedDuration = durationStr;
+            }
+            
+            console.log(`[AI Gateway] Adjusted duration to: ${adjustedDuration} (type: ${typeof adjustedDuration})`);
         }
 
         // 根据 schema 调整 resolution 值
@@ -92,29 +110,35 @@ export const generateVideoViaGateway = async (params: {
         if (schema?.properties?.resolution?.enum && params.resolution) {
             const validResolutions = schema.properties.resolution.enum;
             console.log('[AI Gateway] Valid resolutions from API spec:', validResolutions);
+            console.log('[AI Gateway] Original resolution:', params.resolution);
             
-            // 检查当前值是否有效
+            // 检查当前值是否有效（不区分大小写）
             const resolutionLower = params.resolution.toLowerCase();
-            const validResolution = validResolutions.find((r: string) => r.toLowerCase() === resolutionLower);
+            const validResolution = validResolutions.find((r: string) => 
+                String(r).toLowerCase() === resolutionLower
+            );
             
             if (validResolution) {
                 adjustedResolution = validResolution;
             } else {
                 // 如果不在有效列表中，选择最接近的
                 // 优先级: 1080p > 720p > 480p
-                if (validResolutions.some((r: string) => r.toLowerCase().includes('1080'))) {
-                    adjustedResolution = validResolutions.find((r: string) => r.toLowerCase().includes('1080'));
-                } else if (validResolutions.some((r: string) => r.toLowerCase().includes('720'))) {
-                    adjustedResolution = validResolutions.find((r: string) => r.toLowerCase().includes('720'));
-                } else if (validResolutions.some((r: string) => r.toLowerCase().includes('480'))) {
-                    adjustedResolution = validResolutions.find((r: string) => r.toLowerCase().includes('480'));
+                const findResolution = (pattern: string) => 
+                    validResolutions.find((r: string) => String(r).toLowerCase().includes(pattern));
+                
+                if (resolutionLower.includes('1080')) {
+                    adjustedResolution = findResolution('1080') || findResolution('720') || findResolution('480') || validResolutions[0];
+                } else if (resolutionLower.includes('720')) {
+                    adjustedResolution = findResolution('720') || findResolution('480') || validResolutions[0];
+                } else if (resolutionLower.includes('480')) {
+                    adjustedResolution = findResolution('480') || findResolution('720') || validResolutions[0];
                 } else {
                     // 使用第一个有效值
                     adjustedResolution = validResolutions[0];
                 }
             }
             
-            console.log(`[AI Gateway] Adjusted resolution from ${params.resolution} to ${adjustedResolution}`);
+            console.log(`[AI Gateway] Adjusted resolution to: ${adjustedResolution}`);
         }
 
         // 构建请求体
