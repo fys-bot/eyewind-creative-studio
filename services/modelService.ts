@@ -11,6 +11,8 @@ export interface AIModel {
     object: string;
     created?: number;
     owned_by?: string;
+    name?: string;  // API返回的显示名称
+    description?: string;  // API返回的描述
     // 自定义字段
     type?: 'video' | 'audio' | 'image' | 'text';
     provider?: string;
@@ -106,71 +108,81 @@ export const fetchModelsFromGateway = async (): Promise<AIModel[]> => {
         
         // 处理和分类模型
         const models = data.data.map(model => {
-            // 根据模型ID推断类型
+            // 根据模型ID推断类型（如果API没有提供type字段）
             const modelId = model.id.toLowerCase();
             let type: 'video' | 'audio' | 'image' | 'text' = 'text';
-            let provider = model.owned_by || 'Unknown';
-            let label = model.id;
-
-            // 视频模型识别
-            if (modelId.includes('veo') || 
-                modelId.includes('video') || 
-                modelId.includes('gen-3') || 
-                modelId.includes('runway') ||
-                modelId.includes('kling') ||
-                modelId.includes('seedance') ||
-                modelId.includes('motion')) {
-                type = 'video';
-            }
-            // 音频模型识别
-            else if (modelId.includes('tts') || 
-                     modelId.includes('audio') || 
-                     modelId.includes('speech') ||
-                     modelId.includes('whisper')) {
-                type = 'audio';
-            }
-            // 图像模型识别
-            else if (modelId.includes('dall-e') || 
-                     modelId.includes('imagen') || 
-                     modelId.includes('midjourney') ||
-                     modelId.includes('stable-diffusion') ||
-                     modelId.includes('flux')) {
-                type = 'image';
-            }
-
-            // 生成友好的标签
-            if (modelId.includes('veo')) {
-                if (modelId.includes('fast')) {
-                    label = 'Veo Fast (Preview)';
-                    provider = 'Google';
-                } else if (modelId.includes('hq') || modelId.includes('high')) {
-                    label = 'Veo High Quality';
-                    provider = 'Google';
+            
+            // 优先使用API返回的type字段
+            if (model.type) {
+                const apiType = model.type.toLowerCase();
+                if (apiType === 'video') type = 'video';
+                else if (apiType === 'audio' || apiType === 'tts' || apiType === 'stt') type = 'audio';
+                else if (apiType === 'image') type = 'image';
+                else if (apiType === 'chat-completion' || apiType === 'language' || apiType === 'language-completion') type = 'text';
+            } else {
+                // 如果API没有type字段，根据ID推断
+                if (modelId.includes('veo') || 
+                    modelId.includes('video') || 
+                    modelId.includes('gen-3') || 
+                    modelId.includes('runway') ||
+                    modelId.includes('kling') ||
+                    modelId.includes('seedance') ||
+                    modelId.includes('motion')) {
+                    type = 'video';
                 }
-            } else if (modelId.includes('gen-3') || modelId.includes('runway')) {
-                label = 'Gen-3 Alpha';
-                provider = 'Runway';
-            } else if (modelId.includes('kling')) {
-                label = 'Kling 1.5';
-                provider = 'Kling AI';
-            } else if (modelId.includes('seedance')) {
-                label = 'Doubao Seedance 1.5 Pro';
-                provider = 'Volcengine';
-            } else if (modelId.includes('motion') && modelId.includes('turbo')) {
-                label = 'Motion Turbo';
-                provider = 'Eyewind';
-            } else if (modelId.includes('gpt')) {
-                label = model.id.toUpperCase();
-                provider = 'OpenAI';
-            } else if (modelId.includes('claude')) {
-                label = 'Claude ' + modelId.split('-').slice(-2).join(' ');
-                provider = 'Anthropic';
+                else if (modelId.includes('tts') || 
+                         modelId.includes('audio') || 
+                         modelId.includes('speech') ||
+                         modelId.includes('whisper')) {
+                    type = 'audio';
+                }
+                else if (modelId.includes('dall-e') || 
+                         modelId.includes('imagen') || 
+                         modelId.includes('midjourney') ||
+                         modelId.includes('stable-diffusion') ||
+                         modelId.includes('flux')) {
+                    type = 'image';
+                }
+            }
+
+            // 使用API返回的name字段作为label，如果没有则使用id
+            const label = model.name || model.id;
+            
+            // 获取原始provider
+            const provider = model.owned_by || 'Unknown';
+            
+            // 标准化provider名称
+            let normalizedProvider = provider;
+            const providerLower = provider.toLowerCase();
+            
+            if (providerLower.includes('google')) {
+                normalizedProvider = 'Google';
+            } else if (providerLower.includes('openai')) {
+                normalizedProvider = 'OpenAI';
+            } else if (providerLower.includes('runway')) {
+                normalizedProvider = 'Runway';
+            } else if (providerLower.includes('kuaishou')) {
+                normalizedProvider = 'Kling AI';
+            } else if (providerLower.includes('bytedance')) {
+                normalizedProvider = 'Volcengine';
+            } else if (providerLower.includes('eyewind')) {
+                normalizedProvider = 'Eyewind';
+            } else if (providerLower.includes('anthropic')) {
+                normalizedProvider = 'Anthropic';
+            } else if (providerLower.includes('meta')) {
+                normalizedProvider = 'Meta';
+            } else if (providerLower.includes('luma')) {
+                normalizedProvider = 'Luma';
+            } else if (providerLower.includes('minimax')) {
+                normalizedProvider = 'MiniMax';
+            } else if (providerLower.includes('alibaba')) {
+                normalizedProvider = 'Alibaba';
             }
 
             return {
                 ...model,
                 type,
-                provider,
+                provider: normalizedProvider,
                 label
             };
         });
