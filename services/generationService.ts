@@ -125,12 +125,14 @@ export const generateVideo = async (config: VideoConfig & { characterNames?: str
 
     // 默认使用 AI Gateway - 所有其他模型（包括从gateway获取的veo, runway, kling等）
     console.log('[Generation Service] Using AI Gateway for model:', actualModel);
+    console.log('[Generation Service] Config durationSeconds:', config.durationSeconds);
+    
     return AIGatewayProvider.generateVideoViaGateway({
         model: actualModel,
         prompt: config.prompt,
         aspectRatio: config.aspectRatio,
         resolution: config.resolution,
-        duration: config.durationSeconds || 4,
+        duration: config.durationSeconds,  // 移除默认值，让aiGatewayService处理
         referenceImage: config.startImage  // 添加起始图片支持
     });
 };

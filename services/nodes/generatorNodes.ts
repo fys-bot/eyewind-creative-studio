@@ -151,11 +151,13 @@ export class VideoGenNode extends BaseNode {
         throw new Error("Video generation requires a text prompt or a start/end image.");
     }
 
+    console.log('[Video Gen Node] Settings duration:', ctx.settings?.duration);
+
     return generateVideo({
       model: ctx.settings?.model,
       prompt: prompt,
       aspectRatio: ctx.settings?.aspectRatio,
-      durationSeconds: ctx.settings?.duration || 4,
+      durationSeconds: ctx.settings?.duration,  // 移除默认值，让下游处理
       resolution: ctx.settings?.resolution,
       startImage: startImage,
       endImage: endImage,
