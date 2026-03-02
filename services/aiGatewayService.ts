@@ -1,10 +1,11 @@
 // AI Gateway 服务 - 统一的API调用接口
+import { getEndpointSchema, validateAndCompleteRequest } from './apiSpecService';
 
 // 在开发环境使用代理，生产环境使用直接URL
 const isDevelopment = (import.meta as any).env?.DEV || false;
 const API_BASE_URL = isDevelopment 
-    ? '/ai-gateway/v1'
-    : 'https://ai-gateway.eyewind.com/v1';
+    ? '/ai-gateway/v1'  // 开发环境使用代理
+    : 'https://ai-gateway.eyewind.com/v1';  // 生产环境直接访问
 
 // 缓存API token
 let cachedApiToken: string | null = null;
@@ -66,25 +67,30 @@ export const generateVideoViaGateway = async (params: {
             headers['Authorization'] = `Bearer ${apiToken}`;
         }
 
-        // 根据不同模型调整 duration 值
-        // aimlapi 的某些模型只支持 4, 6, 8 秒
-        let adjustedDuration = params.duration || 4;
+        // 获取 API 规范中的 schema
+        const schema = await getEndpointSchema('/v1/videos/generations', 'post');
         
-        // 如果模型包含特定关键词，映射到支持的值
-        const modelLower = params.model.toLowerCase();
-        if (modelLower.includes('veo') || modelLower.includes('runway') || modelLower.includes('kling')) {
-            // 这些模型可能只支持 4, 6, 8
-            if (adjustedDuration <= 4) adjustedDuration = 4;
-            else if (adjustedDuration <= 6) adjustedDuration = 6;
-            else adjustedDuration = 8;
+        // 根据不同模型调整 duration 值
+        let adjustedDuration = params.duration || 5;
+        
+        // 如果有 schema，使用 schema 中的枚举值
+        if (schema?.properties?.duration?.enum) {
+            const validDurations = schema.properties.duration.enum;
+            console.log('[AI Gateway] Valid durations from API spec:', validDurations);
+            
+            // 找到最接近的有效值
+            adjustedDuration = validDurations.reduce((prev: number, curr: number) => {
+                return Math.abs(curr - adjustedDuration) < Math.abs(prev - adjustedDuration) ? curr : prev;
+            });
         }
 
-        const requestBody: any = {
+        // 构建请求体
+        let requestBody: any = {
             model: params.model,
             prompt: params.prompt,
         };
         
-        // 只在有值时添加可选字段
+        // 添加可选字段
         if (params.aspectRatio) {
             requestBody.aspect_ratio = params.aspectRatio;
         }
@@ -96,6 +102,19 @@ export const generateVideoViaGateway = async (params: {
         }
         if (params.referenceImage) {
             requestBody.reference_image = params.referenceImage;
+        }
+
+        // 使用 schema 验证和补全请求体
+        if (schema) {
+            const validation = validateAndCompleteRequest(requestBody, schema);
+            
+            if (!validation.valid) {
+                console.error('[AI Gateway] Request validation errors:', validation.errors);
+                throw new Error(`Invalid request: ${validation.errors.join(', ')}`);
+            }
+            
+            requestBody = validation.completed;
+            console.log('[AI Gateway] Request validated and completed:', requestBody);
         }
 
         console.log('[AI Gateway] Generating video:', requestBody);
@@ -241,22 +260,37 @@ export const generateAudioViaGateway = async (params: {
             headers['Authorization'] = `Bearer ${apiToken}`;
         }
 
+        // 获取 API 规范中的 schema
+        const schema = await getEndpointSchema('/v1/audio/generations', 'post');
+
         // 确保文本至少 10 个字符
         let textContent = params.text;
         if (textContent.length < 10) {
             textContent = textContent + '，请为我生成这段音频内容。';
         }
 
-        const requestBody: any = {
+        // 构建请求体
+        let requestBody: any = {
             model: params.model,
             prompt: textContent,
-            format: 'mp3',  // 默认格式
-            duration: 30,   // 默认时长 30 秒
         };
         
         // 如果有 lyrics，添加到请求中（用于音乐生成）
         if (textContent) {
             requestBody.lyrics = textContent;
+        }
+
+        // 使用 schema 验证和补全请求体
+        if (schema) {
+            const validation = validateAndCompleteRequest(requestBody, schema);
+            
+            if (!validation.valid) {
+                console.error('[AI Gateway] Audio request validation errors:', validation.errors);
+                throw new Error(`Invalid request: ${validation.errors.join(', ')}`);
+            }
+            
+            requestBody = validation.completed;
+            console.log('[AI Gateway] Audio request validated and completed:', requestBody);
         }
 
         console.log('[AI Gateway] Generating audio:', requestBody);
