@@ -82,6 +82,39 @@ export const generateVideoViaGateway = async (params: {
             adjustedDuration = validDurations.reduce((prev: number, curr: number) => {
                 return Math.abs(curr - adjustedDuration) < Math.abs(prev - adjustedDuration) ? curr : prev;
             });
+            
+            console.log(`[AI Gateway] Adjusted duration from ${params.duration} to ${adjustedDuration}`);
+        }
+
+        // 根据 schema 调整 resolution 值
+        let adjustedResolution = params.resolution;
+        
+        if (schema?.properties?.resolution?.enum && params.resolution) {
+            const validResolutions = schema.properties.resolution.enum;
+            console.log('[AI Gateway] Valid resolutions from API spec:', validResolutions);
+            
+            // 检查当前值是否有效
+            const resolutionLower = params.resolution.toLowerCase();
+            const validResolution = validResolutions.find((r: string) => r.toLowerCase() === resolutionLower);
+            
+            if (validResolution) {
+                adjustedResolution = validResolution;
+            } else {
+                // 如果不在有效列表中，选择最接近的
+                // 优先级: 1080p > 720p > 480p
+                if (validResolutions.some((r: string) => r.toLowerCase().includes('1080'))) {
+                    adjustedResolution = validResolutions.find((r: string) => r.toLowerCase().includes('1080'));
+                } else if (validResolutions.some((r: string) => r.toLowerCase().includes('720'))) {
+                    adjustedResolution = validResolutions.find((r: string) => r.toLowerCase().includes('720'));
+                } else if (validResolutions.some((r: string) => r.toLowerCase().includes('480'))) {
+                    adjustedResolution = validResolutions.find((r: string) => r.toLowerCase().includes('480'));
+                } else {
+                    // 使用第一个有效值
+                    adjustedResolution = validResolutions[0];
+                }
+            }
+            
+            console.log(`[AI Gateway] Adjusted resolution from ${params.resolution} to ${adjustedResolution}`);
         }
 
         // 构建请求体
@@ -94,8 +127,8 @@ export const generateVideoViaGateway = async (params: {
         if (params.aspectRatio) {
             requestBody.aspect_ratio = params.aspectRatio;
         }
-        if (params.resolution) {
-            requestBody.resolution = params.resolution;
+        if (adjustedResolution) {
+            requestBody.resolution = adjustedResolution;
         }
         if (adjustedDuration) {
             requestBody.duration = adjustedDuration;
