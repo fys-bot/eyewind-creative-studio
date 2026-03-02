@@ -57,6 +57,8 @@ export const generateVideoViaGateway = async (params: {
     referenceImage?: string;  // 添加参考图片支持
 }): Promise<string> => {
     try {
+        console.log('[AI Gateway] Input params:', params);
+        
         const apiToken = await getApiToken();
         
         const headers: HeadersInit = {
@@ -146,6 +148,30 @@ export const generateVideoViaGateway = async (params: {
             model: params.model,
             prompt: params.prompt,
         };
+        
+        // 检查model是否需要添加提供商前缀
+        // API spec显示某些模型需要格式如 "openai/sora-2-i2v"
+        if (schema?.properties?.model?.description) {
+            const modelDesc = schema.properties.model.description.toLowerCase();
+            // 如果model不包含 "/"，可能需要添加提供商前缀
+            if (!requestBody.model.includes('/')) {
+                console.log('[AI Gateway] Model may need provider prefix:', requestBody.model);
+                // 根据模型ID推断提供商
+                const modelLower = requestBody.model.toLowerCase();
+                if (modelLower.includes('sora') || modelLower.includes('gpt')) {
+                    requestBody.model = `openai/${requestBody.model}`;
+                } else if (modelLower.includes('veo') || modelLower.includes('gemini') || modelLower.includes('imagen')) {
+                    requestBody.model = `google/${requestBody.model}`;
+                } else if (modelLower.includes('runway') || modelLower.includes('gen-')) {
+                    requestBody.model = `runway/${requestBody.model}`;
+                } else if (modelLower.includes('kling')) {
+                    requestBody.model = `kuaishou/${requestBody.model}`;
+                } else if (modelLower.includes('seedance') || modelLower.includes('doubao')) {
+                    requestBody.model = `bytedance/${requestBody.model}`;
+                }
+                console.log('[AI Gateway] Adjusted model with provider:', requestBody.model);
+            }
+        }
         
         // 添加可选字段
         if (params.aspectRatio) {
