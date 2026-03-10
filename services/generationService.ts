@@ -1,5 +1,5 @@
 
-import { VideoConfig, AudioConfig, AspectRatio, Resolution, ImageConfig, ModelType } from "../types";
+import { VideoConfig, AudioConfig, ImageConfig } from "../types";
 import { PROMPTS } from "../utils/promptRegistry";
 import * as GoogleProvider from "./geminiService";
 import * as OpenAIProvider from "./openaiService";
@@ -21,20 +21,12 @@ const getProviderConfig = (providerId: string) => {
 
 // Helper to resolve model (fallback logic)
 const resolveModel = (model: string | undefined, type: 'video' | 'image' | 'text' | 'audio'): string => {
-    if (model) {
-        // Mock non-Google models to fallback to Google equivalent for demo purposes
-        // or return specific string to trigger simulation mode
-        if (model.includes('midjourney') || model.includes('runway') || model.includes('kling') || model.includes('eyewind')) {
-            console.warn(`Model ${model} is not supported by Gemini API. Switching to Simulation Mode.`);
-            return 'SIMULATION:' + model;
-        }
-        return model;
-    }
-    // Default fallbacks - 优先使用 AI Gateway 模型
-    if (type === 'video') return 'veo-3.1-i2v'; // AI Gateway 默认视频模型
-    if (type === 'image') return 'gemini-2.5-flash-image';
+    if (model) return model;
+    // Default fallbacks - 使用 AI Gateway 模型
+    if (type === 'video') return 'veo-3.1-i2v';
+    if (type === 'image') return 'flux-1.1-pro';
     if (type === 'text') return 'gemini-3-flash-preview';
-    if (type === 'audio') return 'gpt-4o-audio-preview'; // AI Gateway 默认音频模型
+    if (type === 'audio') return 'gpt-4o-audio-preview';
     return '';
 };
 
@@ -72,16 +64,9 @@ export const generateVideo = async (config: VideoConfig & { characterNames?: str
         return simulateGeneration(actualModel, 'video', config.prompt);
     }
 
-    // 检查是否应该使用 AI Gateway
-    // 策略：如果模型ID包含特定的provider标识，使用对应的provider
-    // 否则，默认使用 AI Gateway（因为模型是从gateway动态获取的）
-    
-    // Volcengine / Doubao Video Routing
-    if (actualModel.includes('doubao') || actualModel.includes('seedance')) {
+    // Volcengine / Doubao Video Routing - 仅当用户已配置 Volcengine API Key 时
+    if ((actualModel.includes('doubao') || actualModel.includes('seedance')) && getProviderConfig('volcengine')?.apiKey) {
         const volcConfig = getProviderConfig('volcengine');
-        if (!volcConfig || !volcConfig.apiKey) {
-            throw new Error("Volcengine API Key not found. Please connect in settings.");
-        }
         
         // Sanitize API Key: Trim whitespace and remove 'Bearer ' prefix if user pasted it
         const cleanApiKey = volcConfig.apiKey.trim().replace(/^Bearer\s+/i, '');
@@ -96,40 +81,26 @@ export const generateVideo = async (config: VideoConfig & { characterNames?: str
 
         return VolcengineProvider.volcengineGenerateVideo({
             model: modelToUse,
-            prompt: config.prompt, // Original prompt, enhancement happens inside if needed or before
+            prompt: config.prompt,
             startImage: config.startImage,
             endImage: config.endImage,
             apiKey: cleanApiKey,
             endpoint: volcConfig.endpoint,
             duration: config.durationSeconds,
             // @ts-ignore
-            withAudio: config.withAudio // We need to ensure VideoConfig has this or pass via cast
+            withAudio: config.withAudio
         });
     }
 
-    // Google Veo 路由 - 仅当模型明确包含 'veo' 且包含 'google' 或 'gemini' 时
-    if (actualModel.includes('veo') && (actualModel.includes('google') || actualModel.includes('gemini'))) {
-        // 业务逻辑：Prompt 增强
-        const finalPrompt = PROMPTS.VIDEO_GENERATION(config.prompt, config.characterNames || []);
-
-        return GoogleProvider.googleGenerateVideo({
-            model: actualModel,
-            prompt: finalPrompt,
-            aspectRatio: config.aspectRatio,
-            resolution: config.resolution,
-            durationSeconds: config.durationSeconds || 5,
-            startImage: config.startImage,
-            endImage: config.endImage
-        });
-    }
-
-    // 默认使用 AI Gateway - 所有其他模型（包括从gateway获取的veo, runway, kling等）
-    console.log('[Generation Service] Using AI Gateway for model:', actualModel);
+    // 默认使用 AI Gateway - 所有视频模型（包括 veo, runway, kling 等）
+    console.log('[Generation Service] Using AI Gateway for video model:', actualModel);
     console.log('[Generation Service] Video config:', {
         model: actualModel,
         aspectRatio: config.aspectRatio,
         resolution: config.resolution,
         duration: config.durationSeconds || 4,
+        hasStartImage: !!config.startImage,
+        hasEndImage: !!config.endImage,
     });
     
     return AIGatewayProvider.generateVideoViaGateway({
@@ -138,7 +109,8 @@ export const generateVideo = async (config: VideoConfig & { characterNames?: str
         aspectRatio: config.aspectRatio,
         resolution: config.resolution,
         duration: config.durationSeconds || 4,
-        referenceImage: config.startImage  // 添加起始图片支持
+        startImage: config.startImage,
+        endImage: config.endImage
     });
 };
 
@@ -150,14 +122,17 @@ export const generateImage = async (config: ImageConfig): Promise<string> => {
     }
 
     // Basic prompt logic, can be enhanced
-    const finalPrompt = config.prompt; 
+    const finalPrompt = config.prompt;
+    
+    // 确定使用的尺寸：优先使用 size，否则使用 resolution
+    const imageSize = config.size || config.resolution || '1024x1024';
 
     // Azure DALL-E (LiteLLM Path)
     if (actualModel === 'azure-dall-e-3' || actualModel.includes('azure')) {
         try {
             const binding = await capabilityResolver.resolveAndExecute('image_generation', {
                 prompt: finalPrompt,
-                resolution: config.resolution
+                resolution: imageSize
             }, actualModel);
             return binding; // resolveAndExecute returns the URL string for images
         } catch (e) {
@@ -166,69 +141,54 @@ export const generateImage = async (config: ImageConfig): Promise<string> => {
         }
     }
 
-    // OpenAI Routing
-    if (actualModel.includes('dall-e')) {
-        return OpenAIProvider.openaiGenerateImage({
-            model: actualModel,
-            prompt: finalPrompt,
-            size: config.resolution
-        });
-    }
-
-    // Volcengine / Doubao Routing
-    if (actualModel.includes('doubao') || actualModel.includes('volcengine') || actualModel.includes('seedance')) {
+    // Volcengine / Doubao Routing - 仅当用户已配置 Volcengine API Key 时
+    if ((actualModel.includes('doubao') || actualModel.includes('volcengine') || actualModel.includes('seedance')) && getProviderConfig('volcengine')?.apiKey) {
         const volcConfig = getProviderConfig('volcengine');
-        if (!volcConfig || !volcConfig.apiKey) {
-            throw new Error("Volcengine API Key not found. Please connect in settings.");
-        }
         
         // Sanitize API Key
         const cleanApiKey = volcConfig.apiKey.trim().replace(/^Bearer\s+/i, '');
         
-        // Use the configured Endpoint ID (modelId) if available, otherwise fallback to the model name
-        // Ark API expects the Endpoint ID as the 'model' parameter
         const modelToUse = volcConfig.modelId || actualModel;
 
         // Special Case: User wants to use Seedance (Video) in Image Node (Visual Gen)
-        // We route this to the Video generation logic
         if (actualModel.includes('seedance')) {
              return VolcengineProvider.volcengineGenerateVideo({
                 model: modelToUse,
                 prompt: finalPrompt,
-                startImage: config.referenceImages?.[0], // Map first ref image to start image
+                startImage: config.referenceImages?.[0],
                 apiKey: cleanApiKey,
                 endpoint: volcConfig.endpoint
             });
         }
 
         // Standard Text-to-Image (Doubao-Seedream, etc.)
-        // Uses OpenAI compatible /v1/images/generations endpoint structure but on Ark host
         return OpenAIProvider.openaiGenerateImage({
             model: modelToUse,
             prompt: finalPrompt,
-            size: config.resolution, // Will be mapped inside or passed through
-            baseUrl: volcConfig.endpoint || "https://ark.cn-beijing.volces.com/api/v3", // Ensure default endpoint
+            size: imageSize,
+            baseUrl: volcConfig.endpoint || "https://ark.cn-beijing.volces.com/api/v3",
             apiKey: cleanApiKey
         });
     }
 
-    return GoogleProvider.googleGenerateImage({
+    // 默认使用 AI Gateway - 所有图片模型（包括 dall-e, flux, stable-diffusion, gemini 等）
+    console.log('[Generation Service] Using AI Gateway for image model:', actualModel);
+    return AIGatewayProvider.generateImageViaGateway({
         model: actualModel,
         prompt: finalPrompt,
+        size: imageSize,
         aspectRatio: config.aspectRatio,
-        imageSize: config.resolution,
+        resolution: config.resolution,
         referenceImages: config.referenceImages
     });
 };
 
 export const generateCharacterReference = async (description: string): Promise<string> => {
     // Uses a specific prompt for char sheets
-    const prompt = PROMPTS.CHARACTER_SHEET(description);
-    return GoogleProvider.googleGenerateImage({
-        model: 'gemini-2.5-flash-image', // Fast model for iteration
-        prompt: prompt,
-        aspectRatio: '1:1', // Standard for char sheets
-        imageSize: '1K' 
+    return AIGatewayProvider.generateImageViaGateway({
+        model: 'flux-1.1-pro', // AI Gateway 默认图片模型
+        prompt: PROMPTS.CHARACTER_SHEET(description),
+        size: '1024x1024'
     });
 };
 
@@ -240,14 +200,8 @@ export const generateScript = async (concept: string, model?: string, role?: str
 
     let text = "";
 
-    // OpenAI Routing
-    if (actualModel.startsWith('gpt') || actualModel.startsWith('o1')) {
-         text = await OpenAIProvider.openaiGenerateText({
-             model: actualModel,
-             prompt: finalPrompt,
-             systemPrompt: role ? `You are a ${role}.` : undefined
-         });
-    } else if (actualModel.includes('doubao') || actualModel.includes('volcengine')) {
+    // Volcengine / Doubao Routing - 仅当用户已配置 Volcengine API Key 时
+    if ((actualModel.includes('doubao') || actualModel.includes('volcengine')) && getProviderConfig('volcengine')?.apiKey) {
         const volcConfig = getProviderConfig('volcengine');
         if (!volcConfig || !volcConfig.apiKey) {
            throw new Error("Volcengine API Key not found.");
@@ -262,19 +216,37 @@ export const generateScript = async (concept: string, model?: string, role?: str
            apiKey: volcConfig.apiKey
        });
     } else {
-        text = await GoogleProvider.googleGenerateText({
+        // 默认使用 AI Gateway - 所有聊天模型（包括 gemini, gpt, claude 等）
+        console.log('[Generation Service] Using AI Gateway for text model:', actualModel);
+        text = await AIGatewayProvider.generateTextViaGateway({
             model: actualModel,
-            prompt: finalPrompt
+            prompt: finalPrompt,
+            systemPrompt: role ? `You are a ${role}.` : undefined,
+            temperature: 0.7
         });
     }
 
     // 业务逻辑：后处理拆解
     // 移除 markdown 格式，清理空白
-    return text.split('\n')
-        .filter(line => line.trim().length > 5) // 过滤太短的行
-        .filter(line => /^\d+\.|^[-*•]/.test(line.trim()) || line.includes(':')) // 尝试只保留列表项或带冒号的行
-        .map(line => line.replace(/^[-*•\d\.]+\s*/, '').trim()) // 移除序号
-        .slice(0, 3); // 强制取前3条
+    const lines = text.split('\n')
+        .map(line => line.replace(/^\*\*.*?\*\*\s*/, '').trim()) // 移除 **bold** 前缀
+        .filter(line => line.length > 5); // 过滤太短的行
+    
+    // 优先提取列表项或带冒号的行
+    const structured = lines
+        .filter(line => /^\d+[\.\):]|^[-*•]/.test(line.trim()) || line.includes(':'))
+        .map(line => line.replace(/^[-*•\d\.\):]+\s*/, '').trim())
+        .filter(line => line.length > 5);
+    
+    // 如果严格过滤后有结果就用，否则回退到所有非空行
+    const result = structured.length >= 2 ? structured.slice(0, 3) : lines.slice(0, 3);
+    
+    // 兜底：如果后处理全部过滤掉了，直接返回原文
+    if (result.length === 0 && text.trim()) {
+        return [text.trim()];
+    }
+    
+    return result;
     
 };
 
@@ -285,25 +257,7 @@ export const generateSpeech = async (config: AudioConfig): Promise<string> => {
         return simulateGeneration(actualModel, 'audio', config.text);
     }
 
-    // OpenAI TTS Routing
-    if (actualModel.startsWith('tts-1')) {
-        return OpenAIProvider.openaiGenerateSpeech({
-            model: actualModel,
-            text: config.text,
-            voice: config.voice
-        });
-    }
-
-    // Google TTS Routing - 仅当模型明确包含 'gemini' 或 'google' 时
-    if (actualModel.includes('gemini') || actualModel.includes('google')) {
-        return GoogleProvider.googleGenerateSpeech({
-            model: actualModel,
-            text: config.text,
-            voice: config.voice
-        });
-    }
-
-    // 默认使用 AI Gateway - 所有其他音频模型
+    // 默认使用 AI Gateway - 所有音频模型
     console.log('[Generation Service] Using AI Gateway for audio model:', actualModel);
     return AIGatewayProvider.generateAudioViaGateway({
         model: actualModel,

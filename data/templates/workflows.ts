@@ -135,7 +135,7 @@ export const PROFESSIONAL_TEMPLATES: WorkflowTemplate[] = [
                     label: '视频生成 (Kling)',
                     settings: {
                         model: ModelType.KLING,
-                        duration: 5
+                        duration: 4
                     },
                     value: 'Sparks flickering from the robot eye, subtle mechanical movements, sad atmosphere'
                 }

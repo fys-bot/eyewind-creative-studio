@@ -1,6 +1,5 @@
 
 import { ProNodeConfig, ProExecutionResult } from './types';
-import { googleGenerateImage, googleGenerateText } from '../../services/geminiService';
 import { generateImage } from '../../services/generationService';
 import { ModelType } from '../../types';
 
@@ -41,15 +40,14 @@ export class NodeProEngine {
             // IconGenerator 的核心是产出图片，而非文本
             
             const modelTier = inputValues['model_tier'] || 'flash';
-            const model = modelTier === 'pro' ? ModelType.GEMINI_PRO_IMAGE : ModelType.GEMINI_FLASH_IMAGE;
+            const model = modelTier === 'pro' ? 'flux-1.1-pro' : 'flux-1.1-pro';
             const aspectRatio = inputValues['aspect_ratio'] || '1:1';
 
-            // 调用统一生成服务
+            // 调用统一生成服务（通过 AI Gateway）
             const imageUrl = await generateImage({
                 model: model,
                 prompt: finalPrompt,
-                aspectRatio: aspectRatio,
-                resolution: '1024x1024' as any // Force cast to match Resolution type or use valid value
+                size: '1024x1024'
             });
 
             return {

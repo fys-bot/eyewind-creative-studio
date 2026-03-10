@@ -34,49 +34,36 @@ export class ImageGenNode extends BaseNode {
         prompt = "High quality image variation.";
     }
 
-    // --- Prompt Enhancement with Source Labels ---
-    const labels = ctx.inputLabels || {};
-    const refLabel = labels['image_ref'];
-    const charLabel = labels['char_ref'];
-    let contextInfo = "";
-
     const refImages: string[] = [];
     if (ctx.inputs['image_ref']) refImages.push(ctx.inputs['image_ref']);
     if (ctx.inputs['char_ref']) refImages.push(ctx.inputs['char_ref']);
     
     // We append context info to help the model distinct inputs if referenced by name
-    if (refLabel || charLabel) {
-        contextInfo += " [Context: ";
-        if (refLabel) contextInfo += `The 1st image is '${refLabel}'. `;
-        if (charLabel) contextInfo += `The 2nd image is '${charLabel}'. `;
-        contextInfo += "] ";
-    }
+    // 注意：图片已通过 referenceImages 传递，不要把链接/文案放到 prompt 里，否则模型会把文字画到图片中
 
-    // Handle @ References
+    // Handle @ References — 只收集图片到 refImages，文本引用拼到 prompt
+    let contextInfo = "";
     if (ctx.references) {
-        contextInfo += " [References: ";
         for (const [label, data] of Object.entries(ctx.references)) {
             if (typeof data !== 'string') continue;
             
             const isImage = data.startsWith('data:image') || data.startsWith('http');
             if (isImage) {
                 refImages.push(data);
-                contextInfo += `@${label} is image #${refImages.length}. `;
             } else {
-                // Truncate if too long
                 const textContent = data.length > 200 ? data.substring(0, 200) + "..." : data;
-                contextInfo += `@${label} content: "${textContent}". `;
+                contextInfo += `[${label}: ${textContent}] `;
             }
         }
-        contextInfo += "] ";
     }
     
-    const finalPrompt = contextInfo + prompt;
+    const finalPrompt = prompt + (contextInfo ? '\n' + contextInfo : '');
 
     return generateImage({
-      model: ctx.settings?.model || ModelType.GEMINI_FLASH_IMAGE,
+      model: ctx.settings?.model || 'flux-1.1-pro',
       prompt: finalPrompt,
-      aspectRatio: ctx.settings?.aspectRatio || AspectRatio.R_16_9,
+      size: ctx.settings?.size || '1024x1024',
+      aspectRatio: ctx.settings?.aspectRatio, // 保留用于兼容旧的Gemini模型
       referenceImages: refImages,
       resolution: ctx.settings?.resolution
     });

@@ -27,7 +27,20 @@ export default defineConfig(({ mode }) => {
             target: 'https://ai-gateway.eyewind.com',
             changeOrigin: true,
             secure: false,
-            rewrite: (path) => path.replace(/^\/ai-gateway/, '')
+            rewrite: (path) => path.replace(/^\/ai-gateway/, ''),
+            configure: (proxy, _options) => {
+              proxy.on('error', (err, _req, _res) => {
+                console.log('[AI Gateway Proxy] Error:', err.message);
+              });
+              proxy.on('proxyReq', (proxyReq, req, _res) => {
+                console.log('[AI Gateway Proxy]', req.method, req.url, '->', proxyReq.path);
+              });
+              proxy.on('proxyRes', (proxyRes, req, _res) => {
+                if (proxyRes.statusCode >= 400) {
+                  console.log('[AI Gateway Proxy] Error Response:', req.method, req.url, proxyRes.statusCode);
+                }
+              });
+            }
           },
           // Proxy for Volcengine API to bypass CORS
           '/ark-api': {

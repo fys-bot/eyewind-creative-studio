@@ -1,16 +1,18 @@
 
 import React, { useRef, useState, useLayoutEffect, useEffect } from 'react';
-import { AlertCircle, Upload, Sparkles, Loader2, Zap, ChevronDown, ChevronUp, Mic, Megaphone, RectangleHorizontal, RectangleVertical, MonitorPlay, Tablet, Square, Gamepad2, Clapperboard, Feather, Briefcase, Map as MapIcon, Headphones, Palette, Globe, Activity, Users, Bug, X, Music, Video, RefreshCcw, Link2, Plus, UserCog, Layers, Volume2, Network } from 'lucide-react';
+import { AlertCircle, Upload, Sparkles, Loader2, Zap, ChevronDown, ChevronUp, Mic, Megaphone, RectangleHorizontal, RectangleVertical, MonitorPlay, Tablet, Square, Gamepad2, Clapperboard, Feather, Briefcase, Map as MapIcon, Headphones, Palette, Globe, Activity, Users, Bug, X, Music, Video, RefreshCcw, Link2, Plus, UserCog, Layers, Volume2, Network, FileText, Info } from 'lucide-react';
 import { WorkflowNode, WorkflowEdge, AspectRatio, ModelType, Resolution } from '../../types';
-import { MODELS as MODELS_CONST, ASPECT_RATIOS as ASPECT_RATIOS_CONST, BASIC_ASPECT_RATIOS, AUDIO_VOICES as AUDIO_VOICES_CONST, AUDIO_CATEGORIES, RESOLUTIONS, IMAGE_RESOLUTIONS, DURATIONS, AGENT_ROLES } from '../../constants';
+import { MODELS as MODELS_CONST, ASPECT_RATIOS as ASPECT_RATIOS_CONST, BASIC_ASPECT_RATIOS, AUDIO_VOICES as AUDIO_VOICES_CONST, AUDIO_CATEGORIES, RESOLUTIONS, IMAGE_RESOLUTIONS, IMAGE_SIZES, DURATIONS, AGENT_ROLES } from '../../constants';
 import { translations, Language } from '../../utils/translations';
 import { generateCharacterReference, requestApiKey, generateImage } from '../../services/generationService';
+import { cancelAllPolls } from '../../services/aiGatewayService';
 import { uploadAsset } from '../../services/storageService'; // Import Upload Service
 import { getNodeContentHeight, getNodeWidth } from '../../utils/nodeUtils';
 import { useToast } from '../ui/ToastContext';
-import { getVideoModels, getAudioModels, getImageModels, getTextModels, AIModel } from '../../services/modelService';
+import { getVideoModels, getAudioModels, getImageModels, getTextModels, AIModel, getModelSchema, ModelSchema } from '../../services/modelService';
 
 import VideoGenFrames from './toolbar/VideoGenFrames';
+import ModelSelector from './ModelSelector';
 
 interface FloatingToolbarProps {
   node: WorkflowNode;
@@ -26,9 +28,10 @@ interface FloatingToolbarProps {
   onAddNode?: (type: string, x: number, y: number, initialValue?: string) => void;
   onDeleteEdge?: (id: string) => void;
   onConnect?: (sourceId: string, targetId: string, sourceHandle?: string, targetHandle?: string) => void;
+  onCancelRun?: () => void;
 }
 
-const FloatingToolbar: React.FC<FloatingToolbarProps> = ({ node, edges, nodes, updateNodeData, onRun, lang, viewport, isExpanded, onAddConnectedNode, isConnecting, onAddNode, onDeleteEdge, onConnect }) => {
+const FloatingToolbar: React.FC<FloatingToolbarProps> = ({ node, edges, nodes, updateNodeData, onRun, lang, viewport, isExpanded, onAddConnectedNode, isConnecting, onAddNode, onDeleteEdge, onConnect, onCancelRun }) => {
   const t = translations[lang];
   const { addToast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -50,6 +53,10 @@ const FloatingToolbar: React.FC<FloatingToolbarProps> = ({ node, edges, nodes, u
   const [dynamicModels, setDynamicModels] = useState<AIModel[]>([]);
   const [isLoadingModels, setIsLoadingModels] = useState(false);
   
+  // 当前选中模型的 API Schema（从 /v1/docs-json 获取）
+  const [currentModelSchema, setCurrentModelSchema] = useState<ModelSchema | null>(null);
+  const [isLoadingSchema, setIsLoadingSchema] = useState(false);
+  
   // Sync local replacing state to node data for visual feedback (grayscale)
   useLayoutEffect(() => {
      if (isReplacing !== !!node.data.isReplacing) {
@@ -63,7 +70,7 @@ const FloatingToolbar: React.FC<FloatingToolbarProps> = ({ node, edges, nodes, u
       setIsLoadingModels(true);
       try {
         let models: AIModel[] = [];
-        if (node.type === 'video_gen') {
+        if (node.type === 'video_gen' || node.type === 'video_composer') {
           models = await getVideoModels();
         } else if (node.type === 'audio_gen') {
           models = await getAudioModels();
@@ -86,6 +93,57 @@ const FloatingToolbar: React.FC<FloatingToolbarProps> = ({ node, edges, nodes, u
     
     loadModels();
   }, [node.type]);
+
+  // 当模型切换时，调用 /v1/docs-json?model={id} 获取该模型的 API Schema
+  useEffect(() => {
+    const modelId = node.data.settings?.model;
+    if (!modelId) {
+      setCurrentModelSchema(null);
+      return;
+    }
+    
+    let cancelled = false;
+    const loadSchema = async () => {
+      setIsLoadingSchema(true);
+      try {
+        const schema = await getModelSchema(modelId);
+        if (!cancelled) {
+          setCurrentModelSchema(schema);
+          console.log(`[FloatingToolbar] Schema loaded for ${modelId}:`, schema?.api_schema?.parameters?.map(p => p.name));
+          
+          // 根据 schema 默认值更新 node settings
+          if (schema?.api_schema?.parameters) {
+            const updates: any = {};
+            for (const param of schema.api_schema.parameters) {
+              if (param.default !== undefined) {
+                if (param.name === 'aspect_ratio' && !node.data.settings?.aspectRatio) {
+                  updates.aspectRatio = String(param.default);
+                } else if (param.name === 'duration' && !node.data.settings?.duration) {
+                  updates.duration = Number(param.default);
+                } else if (param.name === 'resolution' && !node.data.settings?.resolution) {
+                  updates.resolution = String(param.default);
+                } else if (param.name === 'size' && !node.data.settings?.size) {
+                  updates.size = String(param.default);
+                }
+              }
+            }
+            if (Object.keys(updates).length > 0) {
+              console.log(`[FloatingToolbar] Applying schema defaults for ${modelId}:`, updates);
+              updateNodeData({ settings: { ...node.data.settings, ...updates } });
+            }
+          }
+        }
+      } catch (error) {
+        console.error(`[FloatingToolbar] Failed to load schema for ${modelId}:`, error);
+        if (!cancelled) setCurrentModelSchema(null);
+      } finally {
+        if (!cancelled) setIsLoadingSchema(false);
+      }
+    };
+    
+    loadSchema();
+    return () => { cancelled = true; };
+  }, [node.data.settings?.model]);
 
   const [showSettingsPopover, setShowSettingsPopover] = useState(false);
   
@@ -292,40 +350,107 @@ const FloatingToolbar: React.FC<FloatingToolbarProps> = ({ node, edges, nodes, u
       return null;
   };
 
-  const getRelevantModels = () => {
+  /** 从当前模型 Schema 中获取指定参数的枚举选项 */
+  const getSchemaParamOptions = (paramName: string): { enum?: (string | number)[]; default?: any; minimum?: number; maximum?: number } | null => {
+    if (!currentModelSchema?.api_schema?.parameters) return null;
+    const param = currentModelSchema.api_schema.parameters.find(p => p.name === paramName);
+    return param || null;
+  };
+
+  /** 获取图片尺寸选项：优先用 schema 的 enum，否则用默认常量 */
+  const getImageSizeOptions = (): { id: string; label: string }[] => {
+    const sizeParam = getSchemaParamOptions('size') || getSchemaParamOptions('image_size');
+    if (sizeParam?.enum && sizeParam.enum.length > 0) {
+      return sizeParam.enum.map(s => ({ id: String(s), label: String(s).replace('x', '×') }));
+    }
+    return IMAGE_SIZES;
+  };
+
+  /** 检查当前图片模型是否使用 aspect_ratio（优先于 size） */
+  const imageUsesAspectRatio = (): boolean => {
+    return !!getSchemaParamOptions('aspect_ratio');
+  };
+
+  /** 获取图片 aspect_ratio 选项（从 schema） */
+  const getImageAspectRatioOptions = (): string[] => {
+    const arParam = getSchemaParamOptions('aspect_ratio');
+    if (arParam?.enum && arParam.enum.length > 0) {
+      return arParam.enum.map(String);
+    }
+    return ['1:1', '16:9', '9:16', '4:3', '3:4'];
+  };
+
+  /** 获取图片 resolution 选项（从 schema，如 1K/2K/4K） */
+  const getImageResolutionOptions = (): { id: string; label: string }[] => {
+    const resParam = getSchemaParamOptions('resolution');
+    if (resParam?.enum && resParam.enum.length > 0) {
+      return resParam.enum.map(r => ({ id: String(r), label: String(r) }));
+    }
+    return IMAGE_RESOLUTIONS;
+  };
+
+  /** 获取视频 duration 选项 */
+  const getVideoDurationOptions = (): { value: number; label: string }[] => {
+    const durationParam = getSchemaParamOptions('duration');
+    if (durationParam?.enum && durationParam.enum.length > 0) {
+      return durationParam.enum.map(d => ({ value: Number(d), label: `${d}s` }));
+    }
+    return DURATIONS;
+  };
+
+  /** 获取视频 aspect_ratio 选项 */
+  const getVideoAspectRatioOptions = (): string[] => {
+    const arParam = getSchemaParamOptions('aspect_ratio');
+    if (arParam?.enum && arParam.enum.length > 0) {
+      return arParam.enum.map(String);
+    }
+    return [AspectRatio.R_16_9, AspectRatio.R_9_16];
+  };
+
+  /** 获取视频 resolution 选项 */
+  const getVideoResolutionOptions = (): { id: string; label: string }[] => {
+    const resParam = getSchemaParamOptions('resolution');
+    if (resParam?.enum && resParam.enum.length > 0) {
+      return resParam.enum.map(r => ({ id: String(r), label: String(r) }));
+    }
+    return RESOLUTIONS;
+  };
+
+  type ModelItem = { id: string; name: string; label: string; type: string; provider: string };
+
+  /** 获取当前节点类型对应的模型列表（扁平数组，由 ModelSelector 组件按 ID 前缀分组） */
+  const getModelList = (): ModelItem[] => {
     let typeFilter = '';
-    if (node.type === 'video_gen') typeFilter = 'video';
+    if (node.type === 'video_gen' || node.type === 'video_composer') typeFilter = 'video';
     if (node.type === 'image_gen' || node.type === 'image_input') typeFilter = 'image';
     if (node.type === 'script_agent' || node.type === 'ai_refine') typeFilter = 'text';
     if (node.type === 'audio_gen') typeFilter = 'audio';
 
-    if (!typeFilter) {
-        return { Google: [], OpenAI: [], Enterprise: [], Industry: [], Gateway: [] };
-    }
+    if (!typeFilter) return [];
 
-    // 优先使用动态模型，如果没有则使用本地常量
     const modelsToUse = dynamicModels.length > 0 ? dynamicModels : MODELS_CONST.filter(m => m.type === typeFilter);
     
-    // 将动态模型转换为本地格式并去重
-    const formattedModels = modelsToUse.map(m => ({
+    const formattedModels: ModelItem[] = modelsToUse.map(m => ({
       id: m.id,
-      name: m.label || m.id,
-      label: m.label || m.id,
-      type: m.type || typeFilter,
+      name: m.label || m.name || m.id,
+      label: m.label || m.name || m.id,
+      type: typeFilter,
       provider: m.provider || 'Gateway'
     }));
     
-    // 使用Map去重，确保每个模型ID只出现一次
-    const uniqueModels = Array.from(
-      new Map(formattedModels.map(m => [m.id, m])).values()
-    );
-    
+    return Array.from(new Map(formattedModels.map(m => [m.id, m])).values());
+  };
+
+  /** 获取当前选中模型的详细信息（description, docs_url） */
+  const getCurrentModelInfo = () => {
+    const modelId = node.data.settings?.model;
+    if (!modelId || dynamicModels.length === 0) return null;
+    const model = dynamicModels.find(m => m.id === modelId);
+    if (!model) return null;
     return {
-        Google: uniqueModels.filter(m => m.provider === 'Google'),
-        OpenAI: uniqueModels.filter(m => m.provider === 'OpenAI'),
-        Enterprise: uniqueModels.filter(m => m.provider === 'Enterprise' || m.provider === 'Eyewind'),
-        Industry: uniqueModels.filter(m => m.provider === 'Industry' || m.provider === 'Runway' || m.provider === 'Kling AI' || m.provider === 'Volcengine'),
-        Gateway: uniqueModels.filter(m => m.provider === 'Gateway' || !['Google', 'OpenAI', 'Enterprise', 'Eyewind', 'Industry', 'Runway', 'Kling AI', 'Volcengine'].includes(m.provider || ''))
+      description: model.info?.description || model.description || '',
+      docsUrl: model.info?.docs_url || model.info?.url || '',
+      name: model.info?.name || model.label || model.id,
     };
   };
 
@@ -490,7 +615,7 @@ const FloatingToolbar: React.FC<FloatingToolbarProps> = ({ node, edges, nodes, u
                for (const target of potentialTargets) {
                    const refTag = `@${target.label}`;
                    if (finalPrompt.includes(refTag)) {
-                        let refData = null;
+                        let refData: any = null;
                         if (target.data.outputResult) refData = target.data.outputResult;
                         else if (target.data.value) refData = target.data.value;
                         else if (target.data.outputList) refData = target.data.outputList;
@@ -509,26 +634,24 @@ const FloatingToolbar: React.FC<FloatingToolbarProps> = ({ node, edges, nodes, u
           }
           finalPrompt += contextInfo;
 
-          const ratioStr = node.data.settings?.aspectRatio || '16:9';
-          const [w, h] = ratioStr.split(':').map(Number);
-          const ratio = (w && h) ? w / h : 1.77;
+          // 获取尺寸设置，默认为 1024x1024
+          const size = node.data.settings?.size || '1024x1024';
+          
+          // 从尺寸计算比例（用于显示）
+          const [w, h] = size.split('x').map(Number);
+          const ratio = (w && h) ? w / h : 1;
+          
           const imgUrl = await generateImage({
-              model: node.data.settings?.model || ModelType.GEMINI_FLASH_IMAGE,
+              model: node.data.settings?.model || 'flux-1.1-pro',
               prompt: finalPrompt,
-              aspectRatio: ratioStr as AspectRatio,
-              resolution: node.data.settings?.resolution,
+              size: size,
               referenceImages: refImages
           });
           updateNodeData({ value: imgUrl, settings: { ...node.data.settings, imageRatio: ratio }});
           setIsReplacing(false);
       } catch (e: any) {
           console.error(e);
-          // Only trigger Gemini modal for relevant errors
-          if (e.message && (e.message.includes('API Key not found') || e.message.includes('Google')) && !e.message.includes('OpenAI')) {
-             requestApiKey();
-          } else {
-             addToast(e.message || "Reference image generation failed.", 'error');
-          }
+          addToast(e.message || "Reference image generation failed.", 'error');
       } finally {
           setIsGeneratingRef(false);
       }
@@ -589,15 +712,33 @@ const FloatingToolbar: React.FC<FloatingToolbarProps> = ({ node, edges, nodes, u
       return BASIC_ASPECT_RATIOS; // Restricted list for others
   };
 
-  const renderVideoSettingsPopover = () => (
+  const renderVideoSettingsPopover = () => {
+      const aspectRatioOptions = getVideoAspectRatioOptions();
+      const durationOptions = getVideoDurationOptions();
+      const resolutionOptions = getVideoResolutionOptions();
+      const durationParam = getSchemaParamOptions('duration');
+      
+      return (
+      <>
+      {/* 点击空白处关闭弹窗的透明遮罩 */}
+      <div className="fixed inset-0 z-40" onClick={() => setShowSettingsPopover(false)} />
       <div className="absolute bottom-full right-0 mb-3 bg-white dark:bg-gray-800 rounded-xl shadow-2xl border border-gray-100 dark:border-gray-700 p-3 w-64 z-50 animate-in fade-in zoom-in-95 origin-bottom-right">
           <div className="absolute -bottom-1.5 right-11 w-3 h-3 bg-white dark:bg-gray-800 border-b border-r border-gray-100 dark:border-gray-700 transform rotate-45"></div>
           
+          {isLoadingSchema && (
+              <div className="absolute inset-0 bg-white/60 dark:bg-gray-800/60 backdrop-blur-[1px] rounded-xl z-20 flex items-center justify-center">
+                  <div className="flex items-center gap-2 text-xs text-gray-500">
+                      <Loader2 size={14} className="animate-spin text-blue-500" />
+                      <span>加载配置中...</span>
+                  </div>
+              </div>
+          )}
+          
           <div className="mb-3 relative z-10">
               <div className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-2">Size</div>
-              <div className="flex gap-2">
-                  {[AspectRatio.R_16_9, AspectRatio.R_9_16].map(ratio => (
-                      <button key={ratio} onClick={() => updateNodeData({ settings: { ...node.data.settings, aspectRatio: ratio }})} className={`flex-1 flex flex-col items-center justify-center py-2 rounded-lg border transition-all ${node.data.settings?.aspectRatio === ratio ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 shadow-sm' : 'border-transparent bg-gray-50 dark:bg-gray-700/50 hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300'}`}>
+              <div className="flex gap-2 flex-wrap">
+                  {aspectRatioOptions.map(ratio => (
+                      <button key={ratio} onClick={() => updateNodeData({ settings: { ...node.data.settings, aspectRatio: ratio }})} className={`flex-1 min-w-[60px] flex flex-col items-center justify-center py-2 rounded-lg border transition-all ${node.data.settings?.aspectRatio === ratio ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 shadow-sm' : 'border-transparent bg-gray-50 dark:bg-gray-700/50 hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300'}`}>
                           {getAspectRatioIcon(ratio)}<span className="text-[10px] font-bold mt-1">{ratio}</span>
                       </button>
                   ))}
@@ -606,47 +747,76 @@ const FloatingToolbar: React.FC<FloatingToolbarProps> = ({ node, edges, nodes, u
 
           <div className="mb-3 relative z-10">
               <div className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-2">Duration</div>
-              <div className="flex gap-1.5 items-center">
-                  {DURATIONS.map(d => (
-                      <button key={d.value} onClick={() => updateNodeData({ settings: { ...node.data.settings, duration: d.value }})} className={`flex-1 py-1.5 rounded-lg text-xs font-bold border transition-all ${node.data.settings?.duration === d.value ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 shadow-sm' : 'border-transparent bg-gray-50 dark:bg-gray-700/50 hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300'}`}>{d.label}</button>
-                  ))}
-                  <input 
-                      type="number" 
-                      min="1" 
-                      max="120"
-                      value={node.data.settings?.duration || 4}
-                      onChange={(e) => {
-                          const val = parseInt(e.target.value) || 4;
-                          updateNodeData({ settings: { ...node.data.settings, duration: val }});
-                      }}
-                      className="w-16 px-2 py-1.5 rounded-lg text-xs font-bold border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      placeholder="自定义"
-                  />
-                  <span className="text-xs text-gray-400">s</span>
-              </div>
+              {durationOptions.length <= 6 ? (
+                  <div className="flex flex-col gap-1.5">
+                      <div className="flex gap-1.5 items-center flex-wrap">
+                          {durationOptions.map(d => (
+                              <button key={d.value} onClick={() => updateNodeData({ settings: { ...node.data.settings, duration: d.value }})} className={`flex-1 min-w-[36px] py-1.5 rounded-lg text-xs font-bold border transition-all ${node.data.settings?.duration === d.value ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 shadow-sm' : 'border-transparent bg-gray-50 dark:bg-gray-700/50 hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300'}`}>{d.label}</button>
+                          ))}
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                          <input 
+                              type="number" 
+                              min={durationParam?.minimum || 1} 
+                              max={durationParam?.maximum || 120}
+                              value={node.data.settings?.duration || durationOptions[0]?.value || 5}
+                              onChange={(e) => {
+                                  const val = parseInt(e.target.value) || 5;
+                                  updateNodeData({ settings: { ...node.data.settings, duration: val }});
+                              }}
+                              className="flex-1 px-2 py-1 rounded-lg text-xs font-bold border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                              placeholder="自定义"
+                          />
+                          <span className="text-xs text-gray-400">s</span>
+                      </div>
+                  </div>
+              ) : (
+                  <div className="flex gap-1.5 items-center">
+                      <div className="relative flex-1">
+                          <select
+                              value={node.data.settings?.duration || durationOptions[0]?.value || 5}
+                              onChange={(e) => updateNodeData({ settings: { ...node.data.settings, duration: parseInt(e.target.value) }})}
+                              className="w-full bg-gray-50 dark:bg-gray-700/50 border border-gray-200 dark:border-gray-600 text-xs font-bold text-gray-700 dark:text-gray-200 rounded-lg px-2 py-1.5 outline-none appearance-none cursor-pointer hover:border-blue-300 dark:hover:border-blue-700 transition-all focus:border-blue-500/50"
+                          >
+                              {durationOptions.map(d => (
+                                  <option key={d.value} value={d.value}>{d.label}</option>
+                              ))}
+                          </select>
+                          <div className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none text-gray-400">
+                              <ChevronDown size={10} />
+                          </div>
+                      </div>
+                      <input 
+                          type="number" 
+                          min={durationParam?.minimum || 1} 
+                          max={durationParam?.maximum || 120}
+                          value={node.data.settings?.duration || 5}
+                          onChange={(e) => {
+                              const val = parseInt(e.target.value) || 5;
+                              updateNodeData({ settings: { ...node.data.settings, duration: val }});
+                          }}
+                          className="w-16 px-2 py-1.5 rounded-lg text-xs font-bold border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          placeholder="自定义"
+                      />
+                      <span className="text-xs text-gray-400">s</span>
+                  </div>
+              )}
           </div>
 
           <div className="relative z-10">
               <div className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-2">Quality</div>
-              <div className="flex gap-1.5">
-                  {RESOLUTIONS.map(r => {
-                      const isVeoFast = node.data.settings?.model === ModelType.VEO_FAST || node.data.settings?.model === 'veo-3.1-fast-generate-preview';
-                      const isDisabled = isVeoFast && r.id === Resolution.P1080;
-                      return (
-                          <button 
-                              key={r.id} 
-                              disabled={isDisabled}
-                              onClick={() => !isDisabled && updateNodeData({ settings: { ...node.data.settings, resolution: r.id }})} 
-                              className={`flex-1 py-1.5 rounded-lg text-xs font-bold border transition-all 
-                                  ${isDisabled ? 'opacity-40 cursor-not-allowed bg-gray-50 dark:bg-gray-800 text-gray-400' : 
-                                  node.data.settings?.resolution === r.id ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 shadow-sm' : 
-                                  'border-transparent bg-gray-50 dark:bg-gray-700/50 hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300'}`}
-                              title={isDisabled ? "Not supported by Veo Fast" : ""}
-                          >
-                              {r.label}
-                          </button>
-                      );
-                  })}
+              <div className="flex gap-1.5 flex-wrap">
+                  {resolutionOptions.map(r => (
+                      <button 
+                          key={r.id} 
+                          onClick={() => updateNodeData({ settings: { ...node.data.settings, resolution: r.id }})} 
+                          className={`flex-1 min-w-[48px] py-1.5 rounded-lg text-xs font-bold border transition-all 
+                              ${node.data.settings?.resolution === r.id ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 shadow-sm' : 
+                              'border-transparent bg-gray-50 dark:bg-gray-700/50 hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300'}`}
+                      >
+                          {r.label}
+                      </button>
+                  ))}
               </div>
           </div>
           
@@ -667,68 +837,47 @@ const FloatingToolbar: React.FC<FloatingToolbarProps> = ({ node, edges, nodes, u
               </div>
           )}
       </div>
+      </>
   );
+  };
 
   const renderVideoGenFooter = () => (
-      <div className="relative px-3 py-2 bg-gray-50 dark:bg-gray-800/80 border-t border-gray-100 dark:border-gray-700 flex items-center justify-between gap-2 rounded-b-2xl">
+      <div className="relative px-3 py-2 bg-gray-50 dark:bg-gray-800/80 border-t border-gray-100 dark:border-gray-700 flex flex-col gap-2 rounded-b-2xl">
           {showSettingsPopover && renderVideoSettingsPopover()}
-          <div className="flex items-center gap-2 flex-1">
-               <div className="relative group flex-1">
-                    <div className="flex items-center gap-2 cursor-pointer hover:bg-white dark:hover:bg-gray-700 px-2 py-1.5 rounded-lg transition-colors border border-transparent hover:border-gray-200 dark:hover:border-gray-600">
-                        <div className="p-1 bg-white dark:bg-gray-700 rounded-md shadow-sm text-gray-500 dark:text-gray-400">
-                            <Video size={12}/>
-                        </div>
-                        <span className="text-xs font-semibold text-gray-700 dark:text-gray-200 flex-1 truncate">{node.data.settings?.model?.split('-')[0] || 'Veo'}</span>
-                        <ChevronDown size={12} className="text-gray-400"/>
-                    </div>
-                     <select className="absolute inset-0 opacity-0 cursor-pointer" value={node.data.settings?.model} onChange={(e) => {
-                        const newModel = e.target.value;
-                        const isVeoFast = newModel === ModelType.VEO_FAST || newModel === 'veo-3.1-fast-generate-preview';
-                        updateNodeData({ 
-                            settings: { 
-                                ...node.data.settings, 
-                                model: newModel,
-                                resolution: (isVeoFast && node.data.settings?.resolution === Resolution.P1080) ? Resolution.P720 : node.data.settings?.resolution
-                            }
-                        });
-                     }}>
-                        {(() => {
-                            if (isLoadingModels) {
-                                return <option disabled>Loading models...</option>;
-                            }
-                            
-                            const groups = getRelevantModels();
-                            return (
-                                <>
-                                    {groups.Google.length > 0 && <optgroup label="Google">
-                                        {groups.Google.map(m => <option key={m.id} value={m.id}>{m.label}</option>)}
-                                    </optgroup>}
-                                    {groups.OpenAI.length > 0 && <optgroup label="OpenAI">
-                                        {groups.OpenAI.map(m => <option key={m.id} value={m.id}>{m.label}</option>)}
-                                    </optgroup>}
-                                    {groups.Enterprise.length > 0 && <optgroup label="Enterprise">
-                                        {groups.Enterprise.map(m => <option key={m.id} value={m.id}>⭐ {m.label}</option>)}
-                                    </optgroup>}
-                                    {groups.Industry.length > 0 && <optgroup label="Industry">
-                                        {groups.Industry.map(m => <option key={m.id} value={m.id}>{m.label}</option>)}
-                                    </optgroup>}
-                                    {groups.Gateway.length > 0 && <optgroup label="AI Gateway">
-                                        {groups.Gateway.map(m => <option key={m.id} value={m.id}>{m.label}</option>)}
-                                    </optgroup>}
-                                </>
-                            );
-                        })()}
-                    </select>
-               </div>
-          </div>
           <div className="flex items-center gap-2">
-              <button onClick={() => setShowSettingsPopover(!showSettingsPopover)} className={`flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg transition-all border text-xs font-medium ${showSettingsPopover ? 'bg-white dark:bg-gray-700 border-gray-200 dark:border-gray-600 text-blue-600 dark:text-blue-400 shadow-sm' : 'hover:bg-white dark:hover:bg-gray-700 border-transparent hover:border-gray-200 dark:hover:border-gray-600 text-gray-600 dark:text-gray-300'}`}>
-                  <span>{node.data.settings?.aspectRatio || '16:9'}</span><span className="text-gray-300 dark:text-gray-600">•</span><span>{node.data.settings?.duration || 4}s</span><span className="text-gray-300 dark:text-gray-600">•</span><span>{node.data.settings?.resolution || '720p'}</span><ChevronDown size={10} className={`text-gray-400 transition-transform ${showSettingsPopover ? 'rotate-180' : ''}`}/>
+               <ModelSelector
+                   models={getModelList()}
+                   value={node.data.settings?.model}
+                   onChange={(newModel) => {
+                       const isVeoFast = newModel === ModelType.VEO_FAST || newModel === 'veo-3.1-fast-generate-preview';
+                       updateNodeData({ 
+                           settings: { 
+                               ...node.data.settings, 
+                               model: newModel,
+                               resolution: (isVeoFast && node.data.settings?.resolution === Resolution.P1080) ? Resolution.P720 : node.data.settings?.resolution
+                           }
+                       });
+                   }}
+                   isLoading={isLoadingModels}
+                   icon={<Video size={12}/>}
+                   className="flex-1 min-w-0"
+               />
+          </div>
+          <div className="flex items-center gap-2 justify-end">
+              <button onClick={() => setShowSettingsPopover(!showSettingsPopover)} className={`flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg transition-all border text-xs font-medium whitespace-nowrap ${showSettingsPopover ? 'bg-white dark:bg-gray-700 border-gray-200 dark:border-gray-600 text-blue-600 dark:text-blue-400 shadow-sm' : 'hover:bg-white dark:hover:bg-gray-700 border-transparent hover:border-gray-200 dark:hover:border-gray-600 text-gray-600 dark:text-gray-300'}`}>
+                  <span>{node.data.settings?.aspectRatio || getSchemaParamOptions('aspect_ratio')?.default || '16:9'}</span><span className="text-gray-300 dark:text-gray-600">•</span><span>{node.data.settings?.duration || getSchemaParamOptions('duration')?.default || 4}s</span><span className="text-gray-300 dark:text-gray-600">•</span><span>{node.data.settings?.resolution || getSchemaParamOptions('resolution')?.default || '720p'}</span>{isLoadingSchema && <Loader2 size={10} className="animate-spin text-blue-400 ml-1"/>}<ChevronDown size={10} className={`text-gray-400 transition-transform ${showSettingsPopover ? 'rotate-180' : ''}`}/>
               </button>
-              <button onClick={onRun} disabled={node.status === 'running'} className="flex items-center gap-1.5 bg-black dark:bg-white text-white dark:text-black px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-gray-800 dark:hover:bg-gray-200 transition-all active:scale-95 disabled:opacity-50 shadow-sm">
-                  {node.status === 'running' ? <Loader2 size={12} className="animate-spin"/> : <Zap size={12} className="text-yellow-400 dark:text-yellow-600" fill="currentColor"/>}
-                  <span>{t.actions.run || 'Run'}</span>
-              </button>
+              {node.status === 'running' ? (
+                  <button onClick={(e) => { e.stopPropagation(); cancelAllPolls(); onCancelRun?.(); }} className="flex items-center gap-1.5 bg-red-500 text-white px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-red-600 transition-all active:scale-95 shadow-sm">
+                      <X size={12} />
+                      <span>{lang === 'zh' || lang === 'tw' ? '停止' : 'Stop'}</span>
+                  </button>
+              ) : (
+                  <button onClick={onRun} disabled={isLoadingSchema} className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all active:scale-95 shadow-sm ${isLoadingSchema ? 'bg-gray-100 dark:bg-gray-700 text-gray-400 cursor-wait' : 'bg-black dark:bg-white text-white dark:text-black hover:bg-gray-800 dark:hover:bg-gray-200'}`}>
+                      {isLoadingSchema ? <Loader2 size={12} className="animate-spin"/> : <Zap size={12} className="text-yellow-400 dark:text-yellow-600" fill="currentColor"/>}
+                      <span>{isLoadingSchema ? (lang === 'zh' || lang === 'tw' ? '加载中' : 'Loading') : (t.actions.run || 'Run')}</span>
+                  </button>
+              )}
           </div>
       </div>
   );
@@ -946,9 +1095,18 @@ const FloatingToolbar: React.FC<FloatingToolbarProps> = ({ node, edges, nodes, u
       transform: `translate(${translateX}px, ${translateY}px) scale(${scale})`, 
       transformOrigin: 'top left', 
       width: window.innerWidth < 640 ? 'calc(100% - 32px)' : (node.type === 'sticky_note' ? 'auto' : '420px'), 
-      zIndex: 100,
+      zIndex: 9999,
       transition: 'transform 0.1s ease-out'
   };
+
+  // Node types that have no toolbar UI — skip rendering
+  const toolbarSupportedTypes = [
+    'text_input', 'image_input', 'image_gen', 'video_gen', 'video_composer',
+    'script_agent', 'ai_refine', 'prompt_translator', 'audio_gen',
+    'character_ref', 'sticky_note', 'pro_icon_gen', 'pro_art_director',
+    'image_matting', 'image_upscale', 'preview', 'image_receiver'
+  ];
+  if (!toolbarSupportedTypes.includes(node.type)) return null;
 
   return (
     <div 
@@ -1233,6 +1391,22 @@ const FloatingToolbar: React.FC<FloatingToolbarProps> = ({ node, edges, nodes, u
                         </div>
                     </div>
 
+                    {/* Model Selector */}
+                    <div className="flex items-center justify-between px-1">
+                        <div className="flex items-center gap-1.5 text-xs font-bold text-gray-500 uppercase tracking-wider">
+                            <Network size={12} className="text-blue-500"/>
+                            <span>{lang === 'zh' || lang === 'tw' ? '模型' : 'Model'}</span>
+                            {isLoadingSchema && <Loader2 size={10} className="animate-spin text-blue-400"/>}
+                        </div>
+                        <ModelSelector
+                            models={getModelList()}
+                            value={node.data.settings?.model || 'gemini-3-flash-preview'}
+                            onChange={(modelId) => updateNodeData({ settings: { ...node.data.settings, model: modelId }})}
+                            isLoading={isLoadingModels}
+                            className="w-44"
+                        />
+                    </div>
+
                     {/* Connection Indicator or Input */}
                     {renderConnections()}
                    {!promptSource && (
@@ -1247,6 +1421,14 @@ const FloatingToolbar: React.FC<FloatingToolbarProps> = ({ node, edges, nodes, u
                            />
                         </div>
                     )}
+                </div>
+            )}
+
+            {/* 模型描述信息条 — 切换模型后显示 */}
+            {getCurrentModelInfo()?.description && !['script_agent', 'audio_gen', 'video_composer', 'video_gen'].includes(node.type) && (
+                <div className="flex items-start gap-2 px-1 py-1.5 rounded-lg bg-blue-50/50 dark:bg-blue-900/10 border border-blue-100/50 dark:border-blue-800/30">
+                    <Info size={12} className="text-blue-400 flex-shrink-0 mt-0.5" />
+                    <p className="text-[10px] text-gray-500 dark:text-gray-400 leading-relaxed line-clamp-2">{getCurrentModelInfo()!.description}</p>
                 </div>
             )}
 
@@ -1382,39 +1564,29 @@ const FloatingToolbar: React.FC<FloatingToolbarProps> = ({ node, edges, nodes, u
         {showFooter && node.type !== 'video_gen' && (
           <div className="px-4 py-3 bg-gray-50/80 dark:bg-gray-800/80 border-t border-gray-100 dark:border-gray-700 flex items-center gap-3 rounded-b-2xl">
              
-             {/* 模型选择器 (Script Agent 不显示模型，因为通常用默认，或者显示角色信息) */}
-             {node.type !== 'script_agent' && (
-                 <div className="flex-1 relative group min-w-[120px]">
-                    <select 
-                        className="w-full bg-white dark:bg-gray-900 text-xs font-bold text-gray-700 dark:text-gray-200 rounded-lg pl-2 pr-6 py-1.5 outline-none appearance-none cursor-pointer border border-gray-200 dark:border-gray-700 hover:border-blue-300 dark:hover:border-blue-700 transition-all focus:border-blue-500/50 shadow-sm"
-                        value={node.data.settings?.model} 
-                        onChange={(e) => updateNodeData({ settings: { ...node.data.settings, model: e.target.value }})}
-                    >
-                        {(() => {
-                            const groups = getRelevantModels();
-                            // @ts-ignore
-                            if(groups.Google.length === 0 && groups.OpenAI.length === 0 && groups.Enterprise.length === 0 && groups.Industry.length === 0) return <option disabled>Model</option>;
-                            return (
-                                <>
-                                    {/* @ts-ignore */}
-                                    {groups.Google.map(m => <option key={m.id} value={m.id}>{m.label}</option>)}
-                                    {/* @ts-ignore */}
-                                    {groups.OpenAI.length > 0 && <optgroup label="OpenAI">
-                                        {/* @ts-ignore */}
-                                        {groups.OpenAI.map(m => <option key={m.id} value={m.id}>{m.label}</option>)}
-                                    </optgroup>}
-                                    {/* @ts-ignore */}
-                                    {groups.Enterprise.map(m => <option key={m.id} value={m.id}>⭐ {m.label}</option>)}
-                                    {/* @ts-ignore */}
-                                    {groups.Industry.map(m => <option key={m.id} value={m.id}>{m.label}</option>)}
-                                </>
-                            );
-                        })()}
-                    </select>
-                    <div className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none text-gray-400">
-                        <ChevronDown size={10} />
-                    </div>
-                 </div>
+             {/* 模型选择器 (Script Agent 在上方已有模型选择器, Audio Gen 在下方有专用选择器, Video Composer 不需要模型) */}
+             {node.type !== 'script_agent' && node.type !== 'audio_gen' && node.type !== 'video_composer' && (
+                 <>
+                 <ModelSelector
+                     models={getModelList()}
+                     value={node.data.settings?.model}
+                     onChange={(modelId) => updateNodeData({ settings: { ...node.data.settings, model: modelId }})}
+                     isLoading={isLoadingModels}
+                     className="flex-1 min-w-[120px]"
+                 />
+                 {getCurrentModelInfo()?.docsUrl && (
+                     <a
+                         href={getCurrentModelInfo()!.docsUrl}
+                         target="_blank"
+                         rel="noopener noreferrer"
+                         className="p-1.5 rounded-lg text-gray-400 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/30 transition-all flex-shrink-0"
+                         title={getCurrentModelInfo()?.description || 'Model Documentation'}
+                         onClick={(e) => e.stopPropagation()}
+                     >
+                         <FileText size={14} />
+                     </a>
+                 )}
+                 </>
              )}
              
              {/* Agent Role Display (Visual only, changed via dropdown above) */}
@@ -1429,39 +1601,103 @@ const FloatingToolbar: React.FC<FloatingToolbarProps> = ({ node, edges, nodes, u
              )}
 
              {node.type === 'script_agent' && (
-                 <button 
-                     onClick={onRun}
-                     disabled={node.status === 'running'}
-                     className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all shadow-sm ml-auto bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-50`}
-                 >
-                    {node.status === 'running' ? <Loader2 size={12} className="animate-spin"/> : <Sparkles size={12} fill="currentColor" />}
-                    <span>Generate</span>
-                 </button>
+                 node.status === 'running' ? (
+                     <button 
+                         onClick={(e) => { e.stopPropagation(); cancelAllPolls(); onCancelRun?.(); }}
+                         className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all shadow-sm ml-auto bg-red-500 text-white hover:bg-red-600"
+                     >
+                        <X size={12} />
+                        <span>{lang === 'zh' || lang === 'tw' ? '停止' : 'Stop'}</span>
+                     </button>
+                 ) : (
+                     <button 
+                         onClick={onRun}
+                         className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all shadow-sm ml-auto bg-indigo-600 text-white hover:bg-indigo-700`}
+                     >
+                        <Sparkles size={12} fill="currentColor" />
+                        <span>Generate</span>
+                     </button>
+                 )
              )}
 
              {node.type !== 'script_agent' && <div className="w-px h-4 bg-gray-200 dark:bg-gray-600"></div>}
 
-             {/* 宽高比 (Image/ImageInput only here) */}
-             {['image_gen', 'image_input'].includes(node.type) && (
-                 <div className="relative group w-[72px]">
+             {/* 图片设置选择器 (Image/ImageInput) - 动态从 docs-json 获取 */}
+             {['image_gen', 'image_input'].includes(node.type) && !imageUsesAspectRatio() && (
+                 <div className="relative group w-[100px]">
                      <select 
-                        className="w-full bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 text-xs font-bold text-gray-700 dark:text-gray-200 rounded-lg pl-2 pr-5 py-1.5 outline-none appearance-none cursor-pointer hover:border-blue-300 dark:hover:border-blue-700 transition-all focus:border-blue-500/50 shadow-sm text-center"
-                        value={node.data.settings?.aspectRatio}
-                        onChange={(e) => updateNodeData({ settings: { ...node.data.settings, aspectRatio: e.target.value }})}
+                        className={`w-full bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 text-xs font-bold text-gray-700 dark:text-gray-200 rounded-lg pl-2 pr-5 py-1.5 outline-none appearance-none cursor-pointer hover:border-blue-300 dark:hover:border-blue-700 transition-all focus:border-blue-500/50 shadow-sm text-center ${isLoadingSchema ? 'opacity-50 pointer-events-none' : ''}`}
+                        disabled={isLoadingSchema}
+                        value={(() => {
+                            const sizeOptions = getImageSizeOptions();
+                            const currentSize = node.data.settings?.size || '1024x1024';
+                            const isValid = sizeOptions.some(s => s.id === currentSize);
+                            return isValid ? currentSize : (sizeOptions[0]?.id || '1024x1024');
+                        })()}
+                        onChange={(e) => {
+                            const newSize = e.target.value;
+                            // 从 size 字符串解析宽高比（如 "1792x1024" → 1792/1024）
+                            const parts = newSize.split('x').map(Number);
+                            const ratio = (parts[0] && parts[1]) ? parts[0] / parts[1] : 1;
+                            updateNodeData({ settings: { ...node.data.settings, size: newSize, imageRatio: ratio }});
+                        }}
                      >
-                        {getAvailableRatios().map(r => <option key={r.id} value={r.id}>{r.label}</option>)}
+                        {isLoadingSchema ? (
+                            <option disabled>Loading...</option>
+                        ) : (
+                            getImageSizeOptions().map(s => <option key={s.id} value={s.id}>{s.label}</option>)
+                        )}
                      </select>
                      <div className="absolute right-1 top-1/2 -translate-y-1/2 pointer-events-none text-gray-400">
-                         <ChevronDown size={10} />
+                         {isLoadingSchema ? <Loader2 size={10} className="animate-spin text-blue-400" /> : <ChevronDown size={10} />}
                      </div>
                  </div>
              )}
 
-             {/* Resolution Selector for Image */}
-             {node.type === 'image_gen' && node.data.settings?.model === ModelType.GEMINI_PRO_IMAGE && (
+             {/* 图片 aspect_ratio 选择器 — 当 schema 用 aspect_ratio 而非 size 时显示 */}
+             {['image_gen', 'image_input'].includes(node.type) && imageUsesAspectRatio() && (
+                 <>
+                     <div className="relative group w-[72px]">
+                         <select 
+                            className={`w-full bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 text-xs font-bold text-gray-700 dark:text-gray-200 rounded-lg pl-2 pr-5 py-1.5 outline-none appearance-none cursor-pointer hover:border-blue-300 dark:hover:border-blue-700 transition-all focus:border-blue-500/50 shadow-sm text-center ${isLoadingSchema ? 'opacity-50 pointer-events-none' : ''}`}
+                            disabled={isLoadingSchema}
+                            value={node.data.settings?.aspectRatio || getSchemaParamOptions('aspect_ratio')?.default || '1:1'}
+                            onChange={(e) => {
+                                const ar = e.target.value;
+                                const [w, h] = ar.split(':').map(Number);
+                                const ratio = (w && h) ? w / h : 1;
+                                updateNodeData({ settings: { ...node.data.settings, aspectRatio: ar, imageRatio: ratio }});
+                            }}
+                         >
+                            {getImageAspectRatioOptions().map(ar => <option key={ar} value={ar}>{ar}</option>)}
+                         </select>
+                         <div className="absolute right-1 top-1/2 -translate-y-1/2 pointer-events-none text-gray-400">
+                             {isLoadingSchema ? <Loader2 size={10} className="animate-spin text-blue-400" /> : <ChevronDown size={10} />}
+                         </div>
+                     </div>
+                     {getSchemaParamOptions('resolution') && (
+                         <div className="relative group w-[56px]">
+                             <select 
+                                className={`w-full bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 text-xs font-bold text-gray-700 dark:text-gray-200 rounded-lg pl-2 pr-5 py-1.5 outline-none appearance-none cursor-pointer hover:border-blue-300 dark:hover:border-blue-700 transition-all focus:border-blue-500/50 shadow-sm text-center ${isLoadingSchema ? 'opacity-50 pointer-events-none' : ''}`}
+                                disabled={isLoadingSchema}
+                                value={node.data.settings?.resolution || getSchemaParamOptions('resolution')?.default || '1K'}
+                                onChange={(e) => updateNodeData({ settings: { ...node.data.settings, resolution: e.target.value }})}
+                             >
+                                {getImageResolutionOptions().map(r => <option key={r.id} value={r.id}>{r.label}</option>)}
+                             </select>
+                             <div className="absolute right-1 top-1/2 -translate-y-1/2 pointer-events-none text-gray-400">
+                                 <ChevronDown size={10} />
+                             </div>
+                         </div>
+                     )}
+                 </>
+             )}
+
+             {/* Resolution Selector for Image — 当 schema 有 size 但也有 resolution 时（如旧的硬编码逻辑） */}
+             {node.type === 'image_gen' && !imageUsesAspectRatio() && getSchemaParamOptions('resolution') && (
                  <div className="relative group w-[72px]">
-                     <select className="w-full bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 text-xs font-bold text-gray-700 dark:text-gray-200 rounded-lg pl-2 pr-5 py-1.5 outline-none appearance-none cursor-pointer hover:border-blue-300 dark:hover:border-blue-700 transition-all focus:border-blue-500/50 shadow-sm text-center" value={node.data.settings?.resolution || '1K'} onChange={(e) => updateNodeData({ settings: { ...node.data.settings, resolution: e.target.value as any }})}>
-                         {IMAGE_RESOLUTIONS.map(r => <option key={r.id} value={r.id}>{r.label}</option>)}
+                     <select className={`w-full bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 text-xs font-bold text-gray-700 dark:text-gray-200 rounded-lg pl-2 pr-5 py-1.5 outline-none appearance-none cursor-pointer hover:border-blue-300 dark:hover:border-blue-700 transition-all focus:border-blue-500/50 shadow-sm text-center ${isLoadingSchema ? 'opacity-50 pointer-events-none' : ''}`} disabled={isLoadingSchema} value={node.data.settings?.resolution || getSchemaParamOptions('resolution')?.default || '1K'} onChange={(e) => updateNodeData({ settings: { ...node.data.settings, resolution: e.target.value as any }})}>
+                         {getImageResolutionOptions().map(r => <option key={r.id} value={r.id}>{r.label}</option>)}
                      </select>
                      <div className="absolute right-1 top-1/2 -translate-y-1/2 pointer-events-none text-gray-400">
                          <ChevronDown size={10} />
@@ -1471,40 +1707,14 @@ const FloatingToolbar: React.FC<FloatingToolbarProps> = ({ node, edges, nodes, u
 
              {node.type === 'audio_gen' && (
                  <>
-                     <div className="relative group w-32">
-                         <div className="absolute left-2 top-1/2 -translate-y-1/2 pointer-events-none text-gray-400">
-                             <Headphones size={12}/>
-                         </div>
-                         <select 
-                             className="w-full bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 text-xs font-bold text-gray-700 dark:text-gray-200 rounded-lg pl-7 pr-5 py-1.5 outline-none appearance-none cursor-pointer hover:border-blue-300 dark:hover:border-blue-700 transition-all focus:border-blue-500/50 shadow-sm" 
-                             value={node.data.settings?.model || 'gpt-4o-audio-preview'} 
-                             onChange={(e) => updateNodeData({ settings: { ...node.data.settings, model: e.target.value }})}
-                         >
-                             {(() => {
-                                 if (isLoadingModels) {
-                                     return <option disabled>Loading...</option>;
-                                 }
-                                 
-                                 const groups = getRelevantModels();
-                                 return (
-                                     <>
-                                         {groups.Google.length > 0 && <optgroup label="Google">
-                                             {groups.Google.map(m => <option key={m.id} value={m.id}>{m.label}</option>)}
-                                         </optgroup>}
-                                         {groups.OpenAI.length > 0 && <optgroup label="OpenAI">
-                                             {groups.OpenAI.map(m => <option key={m.id} value={m.id}>{m.label}</option>)}
-                                         </optgroup>}
-                                         {groups.Gateway.length > 0 && <optgroup label="AI Gateway">
-                                             {groups.Gateway.map(m => <option key={m.id} value={m.id}>{m.label}</option>)}
-                                         </optgroup>}
-                                     </>
-                                 );
-                             })()}
-                         </select>
-                         <div className="absolute right-1 top-1/2 -translate-y-1/2 pointer-events-none text-gray-400">
-                             <ChevronDown size={10} />
-                         </div>
-                     </div>
+                     <ModelSelector
+                         models={getModelList()}
+                         value={node.data.settings?.model || 'gpt-4o-audio-preview'}
+                         onChange={(modelId) => updateNodeData({ settings: { ...node.data.settings, model: modelId }})}
+                         isLoading={isLoadingModels}
+                         icon={<Headphones size={12}/>}
+                         className="w-36"
+                     />
                      <div className="relative group w-24">
                          <div className="absolute left-2 top-1/2 -translate-y-1/2 pointer-events-none text-gray-400">
                              <Volume2 size={12}/>
@@ -1532,7 +1742,20 @@ const FloatingToolbar: React.FC<FloatingToolbarProps> = ({ node, edges, nodes, u
                  </>
              )}
 
-             {/* 运行按钮 */}
+             {/* 运行按钮 (script_agent 已有自己的按钮，跳过) */}
+             {node.type === 'script_agent' ? null : node.status === 'running' && node.type !== 'image_input' ? (
+                 <button
+                    onClick={(e) => {
+                        e.stopPropagation();
+                        cancelAllPolls();
+                        onCancelRun?.();
+                    }}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all shadow-sm ml-auto bg-red-500 text-white hover:bg-red-600"
+                 >
+                    <X size={12} />
+                    <span>{lang === 'zh' || lang === 'tw' ? '停止' : 'Stop'}</span>
+                 </button>
+             ) : (
              <button
                 onClick={(e) => {
                     e.stopPropagation();
@@ -1548,9 +1771,11 @@ const FloatingToolbar: React.FC<FloatingToolbarProps> = ({ node, edges, nodes, u
                         }
                     }
                 }}
-                disabled={node.type === 'image_input' ? (isGeneratingRef || !refImgDesc) : node.status === 'running'}
+                disabled={node.type === 'image_input' ? (isGeneratingRef || !refImgDesc) : (node.type === 'video_composer' ? false : isLoadingSchema)}
                 className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all shadow-sm ml-auto
-                    ${(node.type === 'image_input' ? isGeneratingRef : node.status === 'running')
+                    ${(isLoadingSchema && node.type !== 'video_composer')
+                        ? 'bg-gray-100 dark:bg-gray-700 text-gray-400 cursor-wait'
+                        : (node.type === 'image_input' && isGeneratingRef)
                         ? 'bg-gray-100 dark:bg-gray-700 text-gray-400 cursor-wait' 
                         : showRunConfirm 
                             ? 'bg-amber-500 text-white hover:bg-amber-600'
@@ -1562,7 +1787,9 @@ const FloatingToolbar: React.FC<FloatingToolbarProps> = ({ node, edges, nodes, u
                     }
                 `}
              >
-                {(node.type === 'image_input' ? isGeneratingRef : node.status === 'running') ? (
+                {(isLoadingSchema && node.type !== 'video_composer') ? (
+                    <Loader2 size={12} className="animate-spin"/>
+                ) : (node.type === 'image_input' && isGeneratingRef) ? (
                     <Loader2 size={12} className="animate-spin"/> 
                 ) : showRunConfirm ? (
                     <AlertCircle size={12} />
@@ -1574,13 +1801,15 @@ const FloatingToolbar: React.FC<FloatingToolbarProps> = ({ node, edges, nodes, u
                     <Zap size={12} fill="currentColor" className="text-yellow-300 dark:text-yellow-500"/>
                 )}
                 <span>
-                    {(node.type === 'image_input' ? isGeneratingRef : node.status === 'running') ? 'Running' 
+                    {(isLoadingSchema && node.type !== 'video_composer') ? (lang === 'zh' || lang === 'tw' ? '加载中' : 'Loading')
+                    : (node.type === 'image_input' && isGeneratingRef) ? 'Running' 
                     : showRunConfirm ? (lang === 'en' ? 'Overwrite?' : '确认覆盖?')
                     : (node.type !== 'image_input' && node.status === 'done') ? t.actions.regenerate 
                     : (node.type !== 'image_input' && node.status === 'error') ? 'Retry' 
                     : t.actions.run}
                 </span>
             </button>
+             )}
           </div>
         )}
       </div>

@@ -1,187 +1,156 @@
 // AI Gateway 服务 - 统一的API调用接口
-import { getEndpointSchema, validateAndCompleteRequest } from './apiSpecService';
+// 使用 /v1/docs-json?model={id} 动态获取每个模型的 API Schema
+// 所有异步轮询统一使用 /v1/jobs/{job_id}
+import { getModelSchema, validateRequestWithSchema, getApiToken } from './modelService';
 
-// 在开发环境使用代理，生产环境使用直接URL
 const isDevelopment = (import.meta as any).env?.DEV || false;
 const API_BASE_URL = isDevelopment 
-    ? '/ai-gateway/v1'  // 开发环境使用代理
-    : 'https://ai-gateway.eyewind.com/v1';  // 生产环境直接访问
+    ? '/ai-gateway/v1'
+    : 'https://ai-gateway.eyewind.com/v1';
 
-// 缓存API token
-let cachedApiToken: string | null = null;
+// === 通用辅助 ===
 
-/**
- * 从 API Spec 获取 API Token
- */
-const getApiToken = async (): Promise<string> => {
-    if (cachedApiToken) {
-        return cachedApiToken || '';
-    }
-
-    try {
-        const response = await fetch(`${API_BASE_URL}/api-spec`, {
-            method: 'GET',
-            headers: {
-                'Content-Type': 'application/json',
-            }
-        });
-
-        if (!response.ok) {
-            console.warn('[AI Gateway] Failed to fetch API spec, using without token');
-            return '';
-        }
-
-        const spec = await response.json();
-        cachedApiToken = spec.api_token || '';
-        
-        if (cachedApiToken) {
-            console.log('[AI Gateway] API token retrieved successfully');
-        }
-        
-        return cachedApiToken || '';
-    } catch (error) {
-        console.error('[AI Gateway] Error fetching API token:', error);
-        return '';
-    }
+/** 构建带认证的请求头 */
+const buildHeaders = async (): Promise<HeadersInit> => {
+    const token = await getApiToken();
+    const headers: HeadersInit = { 'Content-Type': 'application/json' };
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+    return headers;
 };
 
-/**
- * 视频生成
- */
+/** 转换相对路径为完整URL */
+const toFullUrl = (path: string): string => {
+    if (path.startsWith('http://') || path.startsWith('https://') || path.startsWith('data:')) return path;
+    if (path.startsWith('/uploads/') || path.startsWith('uploads/')) {
+        return `${window.location.origin}${path.startsWith('/') ? '' : '/'}${path}`;
+    }
+    return path;
+};
+
+/** 从 schema 参数中找到最接近的有效枚举值 */
+const findClosestEnumValue = (value: any, enumValues: any[]): any => {
+    if (!enumValues || enumValues.length === 0) return value;
+    const exact = enumValues.find(e => e === value || String(e) === String(value));
+    if (exact !== undefined) return exact;
+    const numVal = Number(value);
+    if (!isNaN(numVal)) {
+        const numEnums = enumValues.map(Number).filter(n => !isNaN(n));
+        if (numEnums.length > 0) {
+            return numEnums.reduce((prev, curr) => 
+                Math.abs(curr - numVal) < Math.abs(prev - numVal) ? curr : prev
+            );
+        }
+    }
+    return enumValues[0];
+};
+
+// === 视频生成 ===
+
 export const generateVideoViaGateway = async (params: {
     model: string;
     prompt: string;
     aspectRatio?: string;
     resolution?: string;
     duration?: number;
-    referenceImage?: string;  // 添加参考图片支持
+    referenceImage?: string;
+    startImage?: string;
+    endImage?: string;
 }): Promise<string> => {
     try {
-        console.log('[AI Gateway] Input parameters:', params);
-        
-        const apiToken = await getApiToken();
-        
-        const headers: HeadersInit = {
-            'Content-Type': 'application/json',
-        };
-        
-        if (apiToken) {
-            headers['Authorization'] = `Bearer ${apiToken}`;
-        }
+        console.log('[AI Gateway] Video input:', params);
+        const headers = await buildHeaders();
 
-        // 获取 API 规范中的 schema
-        const schema = await getEndpointSchema('/v1/videos/generations', 'post');
-        
-        console.log('[AI Gateway] Schema properties:', schema?.properties);
-        
-        // 根据不同模型调整 duration 值
-        let adjustedDuration: number | string = params.duration || 5;
-        
-        // 如果有 schema，使用 schema 中的枚举值
-        if (schema?.properties?.duration?.enum) {
-            const validDurations = schema.properties.duration.enum;
-            console.log('[AI Gateway] Valid durations from API spec:', validDurations);
-            console.log('[AI Gateway] Original duration:', params.duration);
-            
-            // 将 duration 转换为字符串（API 可能要求字符串格式）
-            const durationStr = String(adjustedDuration);
-            
-            // 检查是否在有效列表中
-            if (!validDurations.includes(durationStr) && !validDurations.includes(adjustedDuration)) {
-                // 找到最接近的有效值
-                const numericDurations = validDurations.map((d: any) => typeof d === 'string' ? parseInt(d) : d);
-                const currentDuration = typeof adjustedDuration === 'string' ? parseInt(adjustedDuration) : adjustedDuration;
-                const closestDuration = numericDurations.reduce((prev: number, curr: number) => {
-                    return Math.abs(curr - currentDuration) < Math.abs(prev - currentDuration) ? curr : prev;
-                });
-                
-                // 使用原始格式（字符串或数字）
-                adjustedDuration = validDurations.find((d: any) => 
-                    (typeof d === 'string' ? parseInt(d) : d) === closestDuration
-                ) || closestDuration;
-            } else if (validDurations.includes(durationStr)) {
-                adjustedDuration = durationStr;
-            }
-            
-            console.log(`[AI Gateway] Adjusted duration to: ${adjustedDuration} (type: ${typeof adjustedDuration})`);
-        }
+        // 获取该模型的 API Schema
+        const schema = await getModelSchema(params.model);
+        const apiParams = schema?.api_schema?.parameters || [];
+        // 视频端点统一使用 /v1/videos/generations，忽略 schema 返回的端点
+        const endpoint = '/v1/videos/generations';
 
-        // 根据 schema 调整 resolution 值
-        let adjustedResolution = params.resolution;
-        
-        if (schema?.properties?.resolution?.enum && params.resolution) {
-            const validResolutions = schema.properties.resolution.enum;
-            console.log('[AI Gateway] Valid resolutions from API spec:', validResolutions);
-            console.log('[AI Gateway] Original resolution:', params.resolution);
-            
-            // 检查当前值是否有效（不区分大小写）
-            const resolutionLower = params.resolution.toLowerCase();
-            const validResolution = validResolutions.find((r: string) => 
-                String(r).toLowerCase() === resolutionLower
-            );
-            
-            if (validResolution) {
-                adjustedResolution = validResolution;
-            } else {
-                // 如果不在有效列表中，选择最接近的
-                // 优先级: 1080p > 720p > 480p
-                const findResolution = (pattern: string) => 
-                    validResolutions.find((r: string) => String(r).toLowerCase().includes(pattern));
-                
-                if (resolutionLower.includes('1080')) {
-                    adjustedResolution = findResolution('1080') || findResolution('720') || findResolution('480') || validResolutions[0];
-                } else if (resolutionLower.includes('720')) {
-                    adjustedResolution = findResolution('720') || findResolution('480') || validResolutions[0];
-                } else if (resolutionLower.includes('480')) {
-                    adjustedResolution = findResolution('480') || findResolution('720') || validResolutions[0];
-                } else {
-                    // 使用第一个有效值
-                    adjustedResolution = validResolutions[0];
-                }
-            }
-            
-            console.log(`[AI Gateway] Adjusted resolution to: ${adjustedResolution}`);
-        }
+        console.log('[AI Gateway] Video schema:', { endpoint, paramCount: apiParams.length });
 
-        // 构建请求体
+        // 构建请求体 - 基于 schema 参数动态构建
         let requestBody: any = {
             model: params.model,
             prompt: params.prompt,
+            async_mode: true, // 视频生成始终使用异步模式
         };
-        
-        // 添加可选字段
+
+        const paramMap = new Map(apiParams.map(p => [p.name, p]));
+
+        // aspect_ratio
         if (params.aspectRatio) {
             requestBody.aspect_ratio = params.aspectRatio;
-        }
-        if (adjustedResolution) {
-            requestBody.resolution = adjustedResolution;
-        }
-        if (adjustedDuration) {
-            requestBody.duration = adjustedDuration;
-        }
-        if (params.referenceImage) {
-            requestBody.reference_image = params.referenceImage;
+        } else if (paramMap.has('aspect_ratio')) {
+            requestBody.aspect_ratio = paramMap.get('aspect_ratio')!.default || '16:9';
         }
 
-        // 使用 schema 验证和补全请求体
-        if (schema) {
-            // 先验证，但不使用补全的结果（因为默认值可能不正确）
-            const validation = validateAndCompleteRequest(requestBody, schema);
-            
-            if (!validation.valid) {
-                console.error('[AI Gateway] Request validation errors:', validation.errors);
-                // 不要抛出错误，因为我们已经调整了参数
-                console.warn('[AI Gateway] Validation failed, but continuing with adjusted parameters');
+        // resolution
+        if (params.resolution) {
+            requestBody.resolution = params.resolution;
+        } else if (paramMap.has('resolution')) {
+            requestBody.resolution = paramMap.get('resolution')!.default || '720p';
+        }
+
+        // duration
+        if (params.duration) {
+            requestBody.duration = params.duration;
+        } else if (paramMap.has('duration')) {
+            requestBody.duration = paramMap.get('duration')!.default || 5;
+        }
+
+        // cfg_scale
+        if (paramMap.has('cfg_scale')) {
+            requestBody.cfg_scale = paramMap.get('cfg_scale')!.default ?? 0.5;
+        }
+
+        // negative_prompt
+        if (paramMap.has('negative_prompt')) {
+            requestBody.negative_prompt = '';
+        }
+
+        // 处理图片输入
+        const imageUrl = params.startImage || params.referenceImage;
+        if (imageUrl) {
+            const fullUrl = toFullUrl(imageUrl);
+            if (paramMap.has('image_url')) {
+                requestBody.image_url = fullUrl;
+            } else if (paramMap.has('reference_image')) {
+                requestBody.reference_image = fullUrl;
+            } else {
+                requestBody.image_url = fullUrl;
             }
-            
-            console.log('[AI Gateway] Final request body:', requestBody);
         } else {
-            console.warn('[AI Gateway] No schema found, sending request without validation');
+            const imageUrlParam = paramMap.get('image_url');
+            if (imageUrlParam?.required) {
+                throw new Error('该模型需要输入图片（image_url 为必填项）。请连接一个图片节点作为起始帧，或选择 text-to-video 类型的模型。');
+            }
         }
 
-        console.log('[AI Gateway] Generating video:', requestBody);
+        if (params.endImage) {
+            const endUrl = toFullUrl(params.endImage);
+            if (imageUrl) {
+                requestBody.keyframes = {
+                    frame0: { type: 'image', url: requestBody.image_url || toFullUrl(imageUrl) },
+                    frame1: { type: 'image', url: endUrl }
+                };
+            } else {
+                requestBody.image_url = endUrl;
+            }
+        }
 
-        const response = await fetch(`${API_BASE_URL}/videos/generations`, {
+        // 验证请求体
+        if (schema) {
+            const validation = validateRequestWithSchema(requestBody, schema);
+            if (!validation.valid) {
+                console.warn('[AI Gateway] Video validation warnings:', validation.errors);
+            }
+        }
+
+        console.log('[AI Gateway] Video request:', requestBody);
+
+        // 发送请求 - 使用 schema endpoint
+        const apiPath = endpoint.replace(/^\/v1/, '');
+        const response = await fetch(`${API_BASE_URL}${apiPath}`, {
             method: 'POST',
             headers,
             body: JSON.stringify(requestBody)
@@ -189,141 +158,188 @@ export const generateVideoViaGateway = async (params: {
 
         if (!response.ok) {
             const errorData = await response.json().catch(() => ({}));
-            const errorMessage = errorData.error?.message || JSON.stringify(errorData) || response.statusText;
-            throw new Error(`Video generation failed: ${response.status} ${errorMessage}`);
+            throw new Error(`Video generation failed: ${response.status} ${errorData.error?.message || JSON.stringify(errorData) || response.statusText}`);
         }
 
         const data = await response.json();
+        const jobId = data.job_id || data.id || data.generation_id;
         
-        // 处理异步任务 - 支持 job_id 或 id 字段
-        const jobId = data.job_id || data.id;
+        // 有 jobId → 统一用 /v1/jobs/{job_id} 轮询
         if (jobId) {
-            console.log('[AI Gateway] Video generation job created:', jobId);
-            return await pollVideoJob(jobId, apiToken);
+            console.log('[AI Gateway] Video job created:', jobId);
+            return await pollJob(jobId, 'video_url');
         }
         
-        // 直接返回结果
-        if (data.video_url) {
-            return data.video_url;
-        }
+        // 同步模式 - 直接从响应取结果
+        if (data.video_url) return data.video_url;
+        if (data.url) return data.url;
+        if (data.data?.[0]?.url) return data.data[0].url;
         
-        throw new Error('No video URL or job ID returned from API');
+        throw new Error('No video URL or job ID returned');
     } catch (error) {
-        console.error('[AI Gateway] Video generation error:', error);
+        console.error('[AI Gateway] Video error:', error);
         throw error;
     }
 };
 
-/**
- * 轮询视频生成任务状态
- */
-const pollVideoJob = async (jobId: string, apiToken: string, maxAttempts = 60): Promise<string> => {
-    const headers: HeadersInit = {
-        'Content-Type': 'application/json',
-    };
-    
-    if (apiToken) {
-        headers['Authorization'] = `Bearer ${apiToken}`;
-    }
+// === 图像生成 ===
 
-    for (let i = 0; i < maxAttempts; i++) {
-        await new Promise(resolve => setTimeout(resolve, 5000)); // 等待5秒
-
-        try {
-            const response = await fetch(`${API_BASE_URL}/jobs/${jobId}`, {
-                method: 'GET',
-                headers
-            });
-
-            if (!response.ok) {
-                throw new Error(`Failed to check job status: ${response.status}`);
-            }
-
-            const data = await response.json();
-            
-            if (data.status === 'completed' && data.result?.video_url) {
-                console.log('[AI Gateway] Video generation completed');
-                return data.result.video_url;
-            }
-            
-            if (data.status === 'failed') {
-                throw new Error(data.error || 'Video generation failed');
-            }
-            
-            console.log(`[AI Gateway] Job ${jobId} status: ${data.status} (${data.progress || 0}%)`);
-        } catch (error) {
-            console.error('[AI Gateway] Error polling job:', error);
-            throw error;
-        }
-    }
-    
-    throw new Error('Video generation timed out');
-};
-
-/**
- * 图像生成
- */
 export const generateImageViaGateway = async (params: {
     model: string;
     prompt: string;
     size?: string;
+    aspectRatio?: string;
+    resolution?: string;
+    referenceImages?: string[];
 }): Promise<string> => {
     try {
-        const apiToken = await getApiToken();
-        
-        const headers: HeadersInit = {
-            'Content-Type': 'application/json',
-        };
-        
-        if (apiToken) {
-            headers['Authorization'] = `Bearer ${apiToken}`;
+        console.log('[AI Gateway] Image input:', params);
+        const headers = await buildHeaders();
+
+        // 获取该模型的 API Schema
+        const schema = await getModelSchema(params.model);
+        const apiParams = schema?.api_schema?.parameters || [];
+        const endpoint = schema?.api_schema?.endpoint || '/v1/images/generations';
+
+        const paramMap = new Map(apiParams.map(p => [p.name, p]));
+
+        // 构建请求体 — 参考图片链接拼到 prompt 里，模型会自动识别
+        let finalPrompt = params.prompt;
+        if (params.referenceImages && params.referenceImages.length > 0) {
+            const refs = params.referenceImages.filter(url => url.startsWith('http'));
+            if (refs.length === 1) {
+                finalPrompt = `Based on the reference image: ${refs[0]}\n\n${finalPrompt}`;
+            } else if (refs.length > 1) {
+                const refList = refs.map((url, i) => `Reference image ${i + 1}: ${url}`).join('\n');
+                finalPrompt = `${refList}\n\n${finalPrompt}`;
+            }
         }
 
-        const response = await fetch(`${API_BASE_URL}/images/generations`, {
+        let requestBody: any = {
+            model: params.model,
+            prompt: finalPrompt,
+        };
+
+        // n / num_images
+        if (paramMap.has('n')) {
+            requestBody.n = 1;
+        } else if (paramMap.has('num_images')) {
+            requestBody.num_images = 1;
+        }
+
+        // aspect_ratio
+        if (paramMap.has('aspect_ratio')) {
+            const p = paramMap.get('aspect_ratio')!;
+            requestBody.aspect_ratio = params.aspectRatio || p.default || '1:1';
+        }
+
+        // resolution (1K/2K/4K)
+        if (paramMap.has('resolution')) {
+            const p = paramMap.get('resolution')!;
+            requestBody.resolution = params.resolution || p.default || '1K';
+        }
+
+        // size (像素尺寸)
+        if (paramMap.has('size')) {
+            const p = paramMap.get('size')!;
+            const val = params.size || p.default || '1024x1024';
+            requestBody.size = p.enum ? findClosestEnumValue(val, p.enum) : val;
+        } else if (paramMap.has('image_size')) {
+            // 部分模型用 image_size 而非 size
+            const p = paramMap.get('image_size')!;
+            const val = params.size || p.default || '1024x1024';
+            requestBody.image_size = p.enum ? findClosestEnumValue(val, p.enum) : val;
+        } else if (!paramMap.has('aspect_ratio') && params.size) {
+            requestBody.size = params.size;
+        }
+
+        // quality
+        if (paramMap.has('quality')) {
+            requestBody.quality = paramMap.get('quality')!.default || 'standard';
+        }
+
+        // style
+        if (paramMap.has('style')) {
+            requestBody.style = paramMap.get('style')!.default || 'vivid';
+        }
+
+        // async_mode
+        if (paramMap.has('async_mode')) {
+            requestBody.async_mode = true;
+        }
+
+        // reference_image — 如果 schema 明确支持，也通过专用字段传递（双保险）
+        if (params.referenceImages && params.referenceImages.length > 0) {
+            const refUrl = params.referenceImages[0];
+            if (paramMap.has('reference_image')) {
+                requestBody.reference_image = refUrl;
+            } else if (paramMap.has('image_url')) {
+                requestBody.image_url = refUrl;
+            } else if (paramMap.has('image')) {
+                requestBody.image = refUrl;
+            }
+        }
+
+        // 验证
+        if (schema) {
+            const validation = validateRequestWithSchema(requestBody, schema);
+            if (!validation.valid) {
+                console.warn('[AI Gateway] Image validation warnings:', validation.errors);
+            }
+        }
+
+        console.log('[AI Gateway] Image request:', requestBody);
+
+        const apiPath = endpoint.replace(/^\/v1/, '');
+        const response = await fetch(`${API_BASE_URL}${apiPath}`, {
             method: 'POST',
             headers,
-            body: JSON.stringify({
-                model: params.model,
-                prompt: params.prompt,
-                n: 1,
-                size: params.size || '1024x1024'
-            })
+            body: JSON.stringify(requestBody)
         });
 
         if (!response.ok) {
             const errorData = await response.json().catch(() => ({}));
-            throw new Error(`Image generation failed: ${response.status} ${errorData.error?.message || response.statusText}`);
+            throw new Error(`Image generation failed: ${response.status} ${errorData.error?.message || JSON.stringify(errorData) || response.statusText}`);
         }
 
         const data = await response.json();
-        return data.data?.[0]?.url || data.data?.[0]?.b64_json || '';
+        const jobId = data.job_id || data.id || data.generation_id;
+        
+        // 有 jobId 且没有直接数据 → 统一用 /v1/jobs/{job_id} 轮询
+        if (jobId && !data.data) {
+            console.log('[AI Gateway] Image job created:', jobId);
+            return await pollJob(jobId, 'image_url');
+        }
+        
+        // 同步模式 - 直接返回
+        if (data.data?.[0]?.url) return data.data[0].url;
+        if (data.data?.[0]?.b64_json) return `data:image/png;base64,${data.data[0].b64_json}`;
+        if (data.image_url || data.url) return data.image_url || data.url;
+        
+        throw new Error('No image URL or job ID returned');
     } catch (error) {
-        console.error('[AI Gateway] Image generation error:', error);
+        console.error('[AI Gateway] Image error:', error);
         throw error;
     }
 };
 
-/**
- * 音频生成
- */
+// === 音频生成 ===
+
 export const generateAudioViaGateway = async (params: {
     model: string;
     text: string;
     voice?: string;
 }): Promise<string> => {
     try {
-        const apiToken = await getApiToken();
-        
-        const headers: HeadersInit = {
-            'Content-Type': 'application/json',
-        };
-        
-        if (apiToken) {
-            headers['Authorization'] = `Bearer ${apiToken}`;
-        }
+        console.log('[AI Gateway] Audio input:', params);
+        const headers = await buildHeaders();
 
-        // 获取 API 规范中的 schema
-        const schema = await getEndpointSchema('/v1/audio/generations', 'post');
+        // 获取该模型的 API Schema
+        const schema = await getModelSchema(params.model);
+        const apiParams = schema?.api_schema?.parameters || [];
+        const endpoint = schema?.api_schema?.endpoint || '/v1/audio/completions';
+
+        const paramMap = new Map(apiParams.map(p => [p.name, p]));
 
         // 确保文本至少 10 个字符
         let textContent = params.text;
@@ -334,30 +350,66 @@ export const generateAudioViaGateway = async (params: {
         // 构建请求体
         let requestBody: any = {
             model: params.model,
-            prompt: textContent,
         };
-        
-        // 如果有 lyrics，添加到请求中（用于音乐生成）
-        if (textContent) {
+
+        // 将文本内容设置到所有 schema 中存在的文本字段
+        // 确保 required 的文本字段不会为 undefined
+        if (paramMap.has('prompt')) {
+            requestBody.prompt = textContent;
+        }
+        if (paramMap.has('lyrics')) {
             requestBody.lyrics = textContent;
         }
-
-        // 使用 schema 验证和补全请求体
-        if (schema) {
-            const validation = validateAndCompleteRequest(requestBody, schema);
-            
-            if (!validation.valid) {
-                console.error('[AI Gateway] Audio request validation errors:', validation.errors);
-                throw new Error(`Invalid request: ${validation.errors.join(', ')}`);
-            }
-            
-            requestBody = validation.completed;
-            console.log('[AI Gateway] Audio request validated and completed:', requestBody);
+        if (paramMap.has('text')) {
+            requestBody.text = textContent;
+        }
+        if (paramMap.has('input')) {
+            requestBody.input = textContent;
+        }
+        
+        // 如果 schema 没有任何已知文本字段，默认用 prompt
+        if (!paramMap.has('prompt') && !paramMap.has('lyrics') && !paramMap.has('text') && !paramMap.has('input')) {
+            requestBody.prompt = textContent;
         }
 
-        console.log('[AI Gateway] Generating audio:', requestBody);
+        // 确保所有 required 字段都有值（用文本内容填充 required 的 string 字段）
+        for (const param of apiParams) {
+            if (param.required && !(param.name in requestBody)) {
+                if (param.type === 'string') {
+                    // required string 字段如果还没设置，用文本内容填充
+                    requestBody[param.name] = param.default !== undefined ? param.default : textContent;
+                }
+            }
+        }
 
-        const response = await fetch(`${API_BASE_URL}/audio/generations`, {
+        // voice
+        if (paramMap.has('voice') && params.voice) {
+            requestBody.voice = params.voice;
+        }
+
+        // async_mode
+        if (paramMap.has('async_mode')) {
+            requestBody.async_mode = true;
+        }
+
+        // format
+        if (paramMap.has('format')) {
+            requestBody.format = paramMap.get('format')!.default || 'mp3';
+        }
+
+        // 验证
+        if (schema) {
+            const validation = validateRequestWithSchema(requestBody, schema);
+            if (!validation.valid) {
+                console.warn('[AI Gateway] Audio validation warnings:', validation.errors);
+            }
+            requestBody = validation.completed;
+        }
+
+        console.log('[AI Gateway] Audio request:', requestBody);
+
+        const apiPath = endpoint.replace(/^\/v1/, '');
+        const response = await fetch(`${API_BASE_URL}${apiPath}`, {
             method: 'POST',
             headers,
             body: JSON.stringify(requestBody)
@@ -365,81 +417,219 @@ export const generateAudioViaGateway = async (params: {
 
         if (!response.ok) {
             const errorData = await response.json().catch(() => ({}));
-            const errorMessage = errorData.error?.message || JSON.stringify(errorData) || response.statusText;
-            throw new Error(`Audio generation failed: ${response.status} ${errorMessage}`);
+            throw new Error(`Audio generation failed: ${response.status} ${errorData.error?.message || JSON.stringify(errorData) || response.statusText}`);
         }
 
         const data = await response.json();
+        const jobId = data.job_id || data.id || data.generation_id;
         
-        // 处理异步任务 - 支持 job_id 或 id 字段
-        const jobId = data.job_id || data.id;
+        // 有 jobId → 统一用 /v1/jobs/{job_id} 轮询
         if (jobId) {
-            console.log('[AI Gateway] Audio generation job created:', jobId);
-            return await pollAudioJob(jobId, apiToken);
+            console.log('[AI Gateway] Audio job created:', jobId);
+            return await pollJob(jobId, 'audio_url');
         }
         
-        // 直接返回结果
-        if (data.audio_url || data.url) {
-            return data.audio_url || data.url;
-        }
+        // 同步模式 - 直接返回
+        if (data.audio_url || data.url) return data.audio_url || data.url;
         
-        throw new Error('No audio URL or job ID returned from API');
+        throw new Error('No audio URL or job ID returned');
     } catch (error) {
-        console.error('[AI Gateway] Audio generation error:', error);
+        console.error('[AI Gateway] Audio error:', error);
         throw error;
     }
 };
 
-/**
- * 轮询音频生成任务状态
- */
-const pollAudioJob = async (jobId: string, apiToken: string, maxAttempts = 60): Promise<string> => {
-    const headers: HeadersInit = {
-        'Content-Type': 'application/json',
-    };
-    
-    if (apiToken) {
-        headers['Authorization'] = `Bearer ${apiToken}`;
+// === 文本/聊天生成 ===
+
+export const generateTextViaGateway = async (params: {
+    model: string;
+    prompt: string;
+    systemPrompt?: string;
+    temperature?: number;
+}): Promise<string> => {
+    try {
+        console.log('[AI Gateway] Text input:', { model: params.model, promptLen: params.prompt.length });
+        const headers = await buildHeaders();
+
+        // 获取该模型的 API Schema
+        const schema = await getModelSchema(params.model);
+        const endpoint = schema?.api_schema?.endpoint || '/v1/chat/completions';
+
+        // 构建 messages
+        const messages: { role: string; content: string }[] = [];
+        if (params.systemPrompt) {
+            messages.push({ role: 'system', content: params.systemPrompt });
+        }
+        messages.push({ role: 'user', content: params.prompt });
+
+        const requestBody: any = {
+            model: params.model,
+            messages,
+            temperature: params.temperature ?? 0.7,
+        };
+
+        console.log('[AI Gateway] Text request:', { model: params.model, endpoint, messageCount: messages.length });
+
+        const apiPath = endpoint.replace(/^\/v1/, '');
+        const response = await fetch(`${API_BASE_URL}${apiPath}`, {
+            method: 'POST',
+            headers,
+            body: JSON.stringify(requestBody)
+        });
+
+        if (!response.ok) {
+            const errorData = await response.json().catch(() => ({}));
+            throw new Error(`Text generation failed: ${response.status} ${errorData.error?.message || JSON.stringify(errorData) || response.statusText}`);
+        }
+
+        const data = await response.json();
+        
+        // 标准 OpenAI chat completions 格式
+        const text = data.choices?.[0]?.message?.content || '';
+        if (text) return text;
+        
+        // fallback: 其他格式
+        if (data.text) return data.text;
+        if (data.content) return data.content;
+        if (data.result) return typeof data.result === 'string' ? data.result : JSON.stringify(data.result);
+        
+        throw new Error('No text content returned');
+    } catch (error) {
+        console.error('[AI Gateway] Text error:', error);
+        throw error;
     }
+};
 
-    for (let i = 0; i < maxAttempts; i++) {
-        await new Promise(resolve => setTimeout(resolve, 3000)); // 等待3秒
+// === 轮询取消管理 ===
 
-        try {
-            const response = await fetch(`${API_BASE_URL}/jobs/${jobId}`, {
+/** 当前活跃的轮询 AbortController 集合 */
+const activePolls = new Map<string, AbortController>();
+
+/** 取消指定 jobId 的轮询 */
+export const cancelPoll = (jobId: string) => {
+    const controller = activePolls.get(jobId);
+    if (controller) {
+        controller.abort();
+        activePolls.delete(jobId);
+        console.log(`[AI Gateway] Poll cancelled: ${jobId}`);
+    }
+};
+
+/** 取消所有正在进行的轮询 */
+export const cancelAllPolls = () => {
+    for (const [jobId, controller] of activePolls) {
+        controller.abort();
+        console.log(`[AI Gateway] Poll cancelled: ${jobId}`);
+    }
+    activePolls.clear();
+};
+
+/** 获取当前活跃的轮询 jobId 列表 */
+export const getActivePolls = (): string[] => {
+    return Array.from(activePolls.keys());
+};
+
+// === 通用轮询 ===
+
+/**
+ * 统一轮询异步任务状态
+ * 所有异步任务统一使用 GET /v1/jobs/{job_id} 轮询
+ * 非 200 响应立即停止，支持通过 cancelPoll(jobId) 取消
+ */
+const pollJob = async (
+    jobId: string, 
+    resultUrlField: string
+): Promise<string> => {
+    const headers = await buildHeaders();
+    let attemptCount = 0;
+    
+    const abortController = new AbortController();
+    activePolls.set(jobId, abortController);
+    
+    // 统一轮询端点: /v1/jobs/{job_id}
+    const pollPath = `/jobs/${jobId}`;
+    
+    console.log(`[AI Gateway] Starting poll: GET ${API_BASE_URL}${pollPath}`);
+    
+    try {
+        while (!abortController.signal.aborted) {
+            await new Promise((resolve, reject) => {
+                const timer = setTimeout(resolve, 5000);
+                abortController.signal.addEventListener('abort', () => {
+                    clearTimeout(timer);
+                    reject(new DOMException('Poll cancelled', 'AbortError'));
+                }, { once: true });
+            });
+            
+            attemptCount++;
+
+            const response = await fetch(`${API_BASE_URL}${pollPath}`, {
                 method: 'GET',
-                headers
+                headers,
+                signal: abortController.signal
             });
 
+            // 非 200 立即停止
             if (!response.ok) {
-                throw new Error(`Failed to check job status: ${response.status}`);
+                const errorText = await response.text().catch(() => '');
+                throw new Error(`Poll failed: ${response.status} ${response.statusText}${errorText ? ' - ' + errorText : ''}`);
             }
 
             const data = await response.json();
+            console.log(`[AI Gateway] Job ${jobId}: status=${data.status}, attempt=${attemptCount}, progress=${data.progress || 0}%`);
             
-            if (data.status === 'completed' && (data.result?.audio_url || data.result?.url)) {
-                console.log('[AI Gateway] Audio generation completed');
-                return data.result.audio_url || data.result.url;
+            // 失败
+            if (data.status === 'failed' || data.status === 'error') {
+                let errorMsg = 'Generation failed';
+                if (data.error) {
+                    if (typeof data.error === 'string') {
+                        errorMsg = data.error;
+                    } else if (data.error.message) {
+                        errorMsg = data.error.message;
+                        if (data.error.data && Array.isArray(data.error.data)) {
+                            const details = data.error.data.map((d: any) => `${d.path?.join('.')}: ${d.message}`).join('; ');
+                            errorMsg += ` (${details})`;
+                        }
+                    } else {
+                        errorMsg = JSON.stringify(data.error);
+                    }
+                }
+                if (typeof errorMsg === 'string' && errorMsg.includes('"message"')) {
+                    try {
+                        const parsed = JSON.parse(errorMsg);
+                        if (parsed.error?.message) errorMsg = parsed.error.message;
+                    } catch {}
+                }
+                throw new Error(errorMsg);
             }
             
-            if (data.status === 'failed') {
-                throw new Error(data.error || 'Audio generation failed');
+            // 完成 - 尝试多种结果字段
+            if (data.status === 'completed' || data.status === 'succeed') {
+                const result = data.result || data.output || data;
+                const url = result[resultUrlField] 
+                    || result.url 
+                    || result.video_url 
+                    || result.image_url 
+                    || result.audio_url
+                    || result.data?.[0]?.url;
+                if (url) return url;
             }
             
-            console.log(`[AI Gateway] Job ${jobId} status: ${data.status} (${data.progress || 0}%)`);
-        } catch (error) {
-            console.error('[AI Gateway] Error polling job:', error);
-            throw error;
+            // 继续轮询
         }
+        throw new Error('Poll was cancelled');
+    } catch (error) {
+        if (error instanceof DOMException && error.name === 'AbortError') {
+            throw new Error(`Generation cancelled (job: ${jobId})`);
+        }
+        throw error;
+    } finally {
+        activePolls.delete(jobId);
     }
-    
-    throw new Error('Audio generation timed out');
 };
 
-/**
- * 清除缓存
- */
+// === 缓存管理 ===
+
 export const clearGatewayCache = () => {
-    cachedApiToken = null;
     console.log('[AI Gateway] Cache cleared');
 };

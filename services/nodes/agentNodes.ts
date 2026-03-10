@@ -2,7 +2,7 @@
 import { BaseNode, ResourceType, ResourceSubtype, ExecutionContext, PortDefinition } from "../nodeBase";
 import { WorkflowNodeType, ModelType } from "../../types";
 import { generateScript } from "../generationService";
-import { googleGenerateText } from "../geminiService";
+import { generateTextViaGateway } from "../aiGatewayService";
 
 // --- Script/Story Agent ---
 export class ScriptAgentNode extends BaseNode {
@@ -24,6 +24,9 @@ export class ScriptAgentNode extends BaseNode {
     // For now, let's keep the batch behavior: if input provided, generate new script.
     
     let concept = ctx.inputs['concept'] || ctx.settings.value || ctx.settings.prompt || "Describe a simple creative concept to generate content.";
+    
+    // 保存原始 concept 用于聊天 UI 显示（不含 references 等内部数据）
+    const displayConcept = concept;
 
     // Append References
     if (ctx.references) {
@@ -43,9 +46,19 @@ export class ScriptAgentNode extends BaseNode {
     const role = ctx.settings.role || 'director';
 
     const scenes = await generateScript(concept, ctx.settings?.model, role);
+    const outputText = scenes.join('\n\n');
+    
+    // 同步到 messages 以便 ScriptAgentView 聊天 UI 显示结果
+    // 用 displayConcept 而非 concept，避免显示 [References Context] 等内部数据
+    const messages = [
+      { role: 'user', content: displayConcept },
+      { role: 'model', content: outputText }
+    ];
+    
     return {
-      outputResult: scenes.join('\n\n'),
-      outputList: scenes
+      outputResult: outputText,
+      outputList: scenes,
+      messages
     };
   }
 }
@@ -79,7 +92,7 @@ export class AiRefineNode extends BaseNode {
      }
 
      const prompt = `Refine this prompt for better AI generation results (Image/Video): "${input}". Return only the refined prompt text, no explanations.`;
-     const result = await googleGenerateText({ model: 'gemini-3-flash-preview', prompt });
+     const result = await generateTextViaGateway({ model: ctx.settings?.model || 'gemini-3-flash-preview', prompt });
      
      return { outputResult: result };
   }
@@ -104,7 +117,7 @@ export class PromptTranslatorNode extends BaseNode {
      // Detect if input is Chinese, if so translate to English (best for AI), else to Chinese?
      // Or just "Translate to English" as default since most AI models prefer English.
      const prompt = `Translate the following text to English for AI Image Prompt usage. If it is already English, just refine it. Text: "${input}". Return only the translated text.`;
-     const result = await googleGenerateText({ model: 'gemini-3-flash-preview', prompt });
+     const result = await generateTextViaGateway({ model: ctx.settings?.model || 'gemini-3-flash-preview', prompt });
      
      return { outputResult: result };
   }

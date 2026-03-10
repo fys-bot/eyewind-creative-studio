@@ -41,6 +41,7 @@ interface CanvasProps {
   onUngroupNode?: (id: string) => void; // New prop for ungrouping
   onNodeDragStateChange?: (isDragging: boolean) => void;
   onRun?: (id: string) => void; // Add onRun for toolbar
+  onCancelRun?: (id: string) => void; // Cancel running node
   onUndo?: () => void;
   onRedo?: () => void;
   canUndo?: boolean;
@@ -70,7 +71,7 @@ interface HandleMenuState {
 // --- 主画布组件 ---
 const Canvas: React.FC<CanvasProps> = ({ 
   nodes, edges, selectedNodeId, onSelectNode, onMoveNode, onBatchUpdateNodes, onConnect, onDeleteNode, onAddNode, onDeleteEdge, onInsertNode, onAddConnectedNode, onUpdateNodeData, lang,
-  viewport, onViewportChange, expandedNodeId, onToggleExpand, theme, settings, onUngroupNode, onNodeDragStateChange, onRun,
+  viewport, onViewportChange, expandedNodeId, onToggleExpand, theme, settings, onUngroupNode, onNodeDragStateChange, onRun, onCancelRun,
   onUndo, onRedo, canUndo, canRedo,
   isLayerPanelOpen, onToggleLayerPanel, focusNodes, onCreateGroup, commentModeActive = false, currentProjectId, onOpenTemplates, onSaveToMyWorkflows, onSetCover
 }) => {
@@ -1443,6 +1444,7 @@ const Canvas: React.FC<CanvasProps> = ({
                         edges={edges}
                         updateNodeData={(data) => onUpdateNodeData(selectedNode.id, data)}
                         onRun={() => onRun?.(selectedNode.id)}
+                        onCancelRun={() => onCancelRun?.(selectedNode.id)}
                         lang={lang}
                         viewport={viewport}
                         isExpanded={expandedNodeId === selectedNode.id}

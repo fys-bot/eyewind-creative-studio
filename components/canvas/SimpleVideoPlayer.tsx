@@ -96,7 +96,7 @@ export const SimpleVideoPlayer: React.FC<SimpleVideoPlayerProps> = ({ src, audio
 
     return (
         <div 
-            className={`relative group bg-transparent overflow-hidden ${className}`}
+            className={`relative group bg-transparent overflow-hidden video-player-area ${className}`}
             onMouseDown={(e) => e.stopPropagation()} // Prevent node selection/drag when interacting with player
             onTouchStart={(e) => e.stopPropagation()}
         >

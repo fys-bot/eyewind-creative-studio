@@ -270,7 +270,7 @@ export const useCanvasInteraction = ({
       const onPointerDown = (e: PointerEvent) => {
           // Priority 0: Check for interactive elements
           const target = e.target as Element;
-          if (target.closest('button, input, textarea, select, label, [contenteditable="true"], .node-handle, .react-flow__handle, .node-editable-title')) {
+          if (target.closest('button, input, textarea, select, label, video, audio, [contenteditable="true"], .node-handle, .react-flow__handle, .node-editable-title, .video-player-area')) {
                return;
           }
 

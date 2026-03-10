@@ -27,9 +27,9 @@ export class ImageMattingNode extends BaseNode {
     
     // "Isolate subject, pure white background, no shadows."
     return generateImage({
-        model: ModelType.GEMINI_FLASH_IMAGE,
+        model: 'flux-1.1-pro',
         prompt: "Isolate the main character/object from this image. Place it on a pure solid #00FF00 green screen background for chroma keying. High precision edges.",
-        aspectRatio: AspectRatio.R_1_1,
+        size: '1024x1024',
         referenceImages: [inputImage]
     });
   }

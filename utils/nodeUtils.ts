@@ -94,7 +94,7 @@ export const getNodeContentHeight = (node: WorkflowNode, width: number): number 
         // Add 30px for the footer bar
         return (width * ratio) + 30;
     }
-    if (['image_input', 'image_matting', 'preview'].includes(node.type)) {
+    if (['image_input', 'image_matting', 'preview', 'image_receiver'].includes(node.type)) {
         // Use dynamically calculated ratio if available (e.g. from imported image)
         if (node.data.settings?.imageRatio) {
             return width / node.data.settings.imageRatio;
@@ -105,7 +105,7 @@ export const getNodeContentHeight = (node: WorkflowNode, width: number): number 
         return width * ratio;
     }
     if (node.type === 'sticky_note') return 300; // Increased from default
-    if (node.type === 'script_agent') return 180;
+    if (node.type === 'script_agent' || node.type === 'ai_refine' || node.type === 'prompt_translator') return 280;
     if (node.type === 'audio_gen') return 160;
     if (node.type === 'video_composer') return 160;
     if (node.type === 'pro_icon_gen' || node.type === 'pro_art_director') return 600; // Default tall for Pro Nodes

@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Copy, Loader2, Download, Send, Bot, User, Sparkles, Trash2, CheckCircle } from 'lucide-react';
 import { handleDownload, handleCopy, NodeViewProps } from './nodeViewUtils';
-import { googleGenerateText } from '../../../services/geminiService';
+import { generateTextViaGateway } from '../../../services/aiGatewayService';
 
 export const TextInputView: React.FC<NodeViewProps> = ({ node, isExpanded, contentHeight, t, onUpdateData }) => {
     // Local state for input value to avoid laggy typing
@@ -57,6 +57,29 @@ export const ScriptAgentView: React.FC<NodeViewProps> = ({ node, isExpanded, con
     const [isLoading, setIsLoading] = useState(false);
     const messagesEndRef = useRef<HTMLDivElement>(null);
 
+    // 同步外部更新（handleRunNode 执行后更新了 node.data）
+    // 1. 同步 messages
+    useEffect(() => {
+        const ext = node.data.messages;
+        if (ext && Array.isArray(ext) && ext.length > 0) {
+            // 用 JSON 比较避免引用不同但内容相同时的无限循环
+            const extJson = JSON.stringify(ext);
+            const localJson = JSON.stringify(messages);
+            if (extJson !== localJson) {
+                setMessages(ext);
+            }
+        }
+    }, [node.data.messages]);
+
+    // 2. 同步 loading 状态：当外部 node.status 变为 running 时显示 loading
+    useEffect(() => {
+        if (node.status === 'running') {
+            setIsLoading(true);
+        } else if (node.status === 'done' || node.status === 'error') {
+            setIsLoading(false);
+        }
+    }, [node.status]);
+
     // Scroll to bottom on new message
     useEffect(() => {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -90,8 +113,8 @@ export const ScriptAgentView: React.FC<NodeViewProps> = ({ node, isExpanded, con
             
             Please provide a helpful, creative response. If generating a script or content, just output the content directly.`;
 
-            const result = await googleGenerateText({ 
-                model: 'gemini-3-flash-preview', 
+            const result = await generateTextViaGateway({ 
+                model: node.data.settings?.model || 'gemini-3-flash-preview', 
                 prompt: prompt 
             });
 
@@ -146,6 +169,7 @@ export const ScriptAgentView: React.FC<NodeViewProps> = ({ node, isExpanded, con
             {/* Chat Area */}
             <div 
                 className="flex-1 overflow-y-auto custom-scrollbar p-3 space-y-3 bg-gray-50/50 dark:bg-gray-950/30 cursor-text select-text"
+                style={{ touchAction: 'pan-y', overscrollBehavior: 'contain' }}
                 onWheel={(e) => {
                     // Only stop propagation if it's NOT a pinch gesture (ctrlKey is false)
                     if (!e.ctrlKey && !e.metaKey) {
@@ -153,6 +177,10 @@ export const ScriptAgentView: React.FC<NodeViewProps> = ({ node, isExpanded, con
                         e.nativeEvent.stopImmediatePropagation();
                     }
                 }}
+                onPointerDown={(e) => e.stopPropagation()}
+                onMouseDown={(e) => e.stopPropagation()}
+                onTouchStart={(e) => e.stopPropagation()}
+                onTouchMove={(e) => e.stopPropagation()}
             >
                 {messages.length === 0 && (
                     <div className="flex flex-col items-center justify-center h-full text-gray-400 dark:text-gray-600 space-y-2 opacity-70">

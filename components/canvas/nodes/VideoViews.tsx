@@ -9,11 +9,17 @@ export const VideoGenView: React.FC<NodeViewProps> = ({ node, contentHeight }) =
     // Determine Model Label
     const modelId = node.data.settings?.model;
     const modelObj = MODELS.find(m => m.id === modelId);
-    let modelLabel = 'Veo Fast'; 
+    let modelLabel = 'Video Model'; 
     if (modelObj) {
         modelLabel = modelObj.label.replace('Google ', '').replace('Preview', '').trim();
     } else if (modelId) {
-        modelLabel = modelId.split('-')[0] === 'veo' ? 'Veo' : 'Video Model';
+        // Extract readable name from model ID like "kling/kling-video-v3-pro-text-to-video"
+        const namePart = modelId.includes('/') ? modelId.split('/').pop()! : modelId;
+        modelLabel = namePart
+            .replace(/[-_]/g, ' ')
+            .replace(/\b\w/g, (c: string) => c.toUpperCase())
+            .replace(/ To /g, ' to ')
+            .trim();
     }
 
     const resolution = node.data.settings?.resolution || '720p';
@@ -46,7 +52,7 @@ export const VideoGenView: React.FC<NodeViewProps> = ({ node, contentHeight }) =
             {/* Parameters Footer */}
             <div className="h-10 shrink-0 w-full bg-white dark:bg-gray-900 border-t border-gray-100 dark:border-gray-800 flex items-center px-3 justify-between select-none">
                  <div className="flex items-center gap-2.5">
-                    <div className="flex items-center gap-1.5" title={modelObj?.name}>
+                    <div className="flex items-center gap-1.5" title={modelId || ''}>
                         <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
                         <span className="text-[10px] font-bold text-gray-700 dark:text-gray-300 truncate max-w-[120px]">{modelLabel}</span>
                     </div>

@@ -60,6 +60,8 @@ export const NodeContent: React.FC<NodeContentProps> = (props) => {
         case 'text_input':
             return <TextInputView {...viewProps} />;
         case 'script_agent':
+        case 'ai_refine':
+        case 'prompt_translator':
             return <ScriptAgentView {...viewProps} />;
         case 'audio_gen':
             return <AudioGenView {...viewProps} />;
@@ -78,6 +80,14 @@ export const NodeContent: React.FC<NodeContentProps> = (props) => {
             return <TextInputView {...viewProps} />; // Reuse TextInputView for now
         case 'icon_ref_image':
             return <ImageInputView {...viewProps} />; // Reuse ImageInputView for now
+
+        // Logic / Processing Nodes — reuse TextInputView
+        case 'color_grade':
+        case 'string_processor':
+        case 'logic_router':
+        case 'logic_aggregator':
+        case 'image_compare':
+            return <TextInputView {...viewProps} />;
 
         default:
             return null;

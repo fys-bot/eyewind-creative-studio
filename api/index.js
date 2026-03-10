@@ -27,8 +27,11 @@ app.use(cors({
 app.use(express.json({ limit: '50mb' })); 
 app.use(express.urlencoded({ extended: true }));
 
-// Static Files
-app.use('/uploads', express.static(path.join(process.cwd(), 'server/uploads')));
+// Static Files - serve from /tmp on serverless, local dir otherwise
+const isServerless = process.env.VERCEL || process.env.FIREBASE_CONFIG;
+const uploadsDir = isServerless ? '/tmp/uploads' : path.join(process.cwd(), 'server/uploads');
+if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
+app.use('/uploads', express.static(uploadsDir));
 
 // --- Multer Storage Config ---
 const storage = multer.diskStorage({
@@ -185,7 +188,7 @@ app.post('/api/upload', authenticateToken, upload.single('file'), (req, res) => 
     );
 
     res.json({ 
-        url: `http://localhost:${PORT}${fileUrl}`, 
+        url: fileUrl, 
         filename: req.file.filename,
         mimetype: req.file.mimetype
     });

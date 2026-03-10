@@ -151,9 +151,10 @@ export interface VideoConfig {
 export interface ImageConfig {
   model: string;
   prompt: string;
-  aspectRatio: AspectRatio;
+  size?: string; // 图片尺寸，如 "1024x1024", "512x512" 等
+  aspectRatio?: AspectRatio; // 保留用于兼容性，但优先使用 size
   referenceImages?: string[]; // 新增: 支持多个角色一致性参考图
-  resolution?: Resolution;
+  resolution?: Resolution; // 保留用于兼容性
 }
 
 export interface AudioConfig {

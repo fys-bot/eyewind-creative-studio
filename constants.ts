@@ -76,6 +76,19 @@ export const IMAGE_RESOLUTIONS = [
     { id: Resolution.R_4K, label: '4K (Pro)' }
 ];
 
+// AI Gateway 图片尺寸选项（具体像素尺寸）
+// 注意：这些尺寸必须与 API 规范中的枚举值完全匹配
+// 根据 /v1/api-spec 返回的实际支持尺寸
+export const IMAGE_SIZES = [
+    { id: '256x256', label: '256×256' },
+    { id: '512x512', label: '512×512' },
+    { id: '1024x1024', label: '1024×1024' },
+    { id: '1792x1024', label: '1792×1024' },
+    { id: '1024x1792', label: '1024×1792' },
+    { id: '1536x1024', label: '1536×1024' },
+    { id: '1024x1536', label: '1024×1536' }
+];
+
 export const DURATIONS = [
     { value: 4, label: '4s' },
     { value: 6, label: '6s' },

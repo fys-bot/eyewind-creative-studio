@@ -36,6 +36,7 @@ import {
 } from './services/storageService';
 import { nodeRegistry } from './services/nodeEngine';
 import { requestApiKey } from './services/generationService';
+import { cancelAllPolls } from './services/aiGatewayService';
 import { Language, translations } from './utils/translations';
 import { exportProjectPackage } from './services/projectIo';
 import { ArrowLeft, Save, ChevronDown, Cloud, Download, Globe, Check, Edit2, Settings2, Shield, LayoutDashboard, HelpCircle, MoreHorizontal, Moon, Sun, Laptop, MessageSquare, LogOut, Send, Share2, Users, Link as LinkIcon, FolderHeart } from 'lucide-react';
@@ -1031,6 +1032,34 @@ const AppContent: React.FC = () => {
       }));
   };
 
+  // Auto-sync: image_receiver / preview 节点自动同步上游输出
+  useEffect(() => {
+    const receiverTypes = ['image_receiver', 'preview'];
+    const receivers = nodes.filter(n => receiverTypes.includes(n.type));
+    if (receivers.length === 0) return;
+
+    let hasUpdates = false;
+    const updatedNodes = nodes.map(n => {
+      if (!receiverTypes.includes(n.type)) return n;
+      // 找到连接到此节点的上游边
+      const inEdge = edges.find(e => e.target === n.id);
+      if (!inEdge) return n;
+      const sourceNode = nodes.find(s => s.id === inEdge.source);
+      if (!sourceNode) return n;
+      // 获取上游节点的输出
+      const upstreamOutput = sourceNode.data.outputResult || sourceNode.data.value || null;
+      if (upstreamOutput && upstreamOutput !== n.data.outputResult) {
+        hasUpdates = true;
+        return { ...n, data: { ...n.data, outputResult: upstreamOutput } };
+      }
+      return n;
+    });
+
+    if (hasUpdates) {
+      setNodes(updatedNodes);
+    }
+  }, [nodes, edges]);
+
   // --- Import Workflow Logic for Chat ---
   const handleImportWorkflow = async (newNodes: any[], newEdges: any[]) => {
       if (!Array.isArray(newNodes)) {
@@ -1318,6 +1347,11 @@ const AppContent: React.FC = () => {
              setShowApiKeyModal(true);
           }
       }
+  };
+
+  const handleCancelRunNode = (nodeId: string) => {
+      cancelAllPolls();
+      setNodes(prev => prev.map(n => n.id === nodeId ? { ...n, status: 'error', errorMessage: 'Cancelled by user' } : n));
   };
 
   const handleConnect = (sourceId: string, targetId: string, sourceHandle?: string, targetHandle?: string) => {
@@ -1896,6 +1930,7 @@ const AppContent: React.FC = () => {
                        onUngroupNode={handleUngroupNode}
                        onNodeDragStateChange={setIsDraggingNode}
                        onRun={handleRunNode} // Pass onRun handler
+                       onCancelRun={handleCancelRunNode}
                        onUndo={undo}
                        onRedo={redo}
                        canUndo={historyIndex > 0}

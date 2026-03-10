@@ -194,7 +194,7 @@ const MOCK_TEMPLATES = [
         nodes: [
             { id: 'n1', type: 'text_input', x: 100, y: 100, data: { value: 'Cinematic wide shot, sci-fi city, teal and orange grading, anamorphic lens' }, label: 'Scene Prompt' },
             { id: 'n2', type: 'image_gen', x: 500, y: 100, data: { settings: { aspectRatio: '21:9' } }, label: 'Wide Shot Gen' },
-            { id: 'n3', type: 'video_gen', x: 900, y: 100, data: { settings: { duration: 5 } }, label: 'Camera Move' },
+            { id: 'n3', type: 'video_gen', x: 900, y: 100, data: { settings: { duration: 4 } }, label: 'Camera Move' },
             { id: 'n4', type: 'preview', x: 1300, y: 100, label: 'Movie Clip' }
         ],
         edges: [

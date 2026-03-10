@@ -183,13 +183,30 @@ export const ImageGenView: React.FC<NodeViewProps> = ({ node, contentHeight, zoo
     const modelObj = MODELS.find(m => m.id === modelId);
     let modelLabel = 'Gemini Flash';
     if (modelObj) {
-        modelLabel = modelObj.label.replace('Gemini ', '').replace('Google ', '').replace('Preview', '').trim();
+        modelLabel = modelObj.label;
     } else if (modelId) {
-        modelLabel = modelId.split('-').slice(0, 2).join(' ');
+        // 从 model id 提取可读名称，如 "google/gemini-3-pro-image-preview" → "gemini 3 pro image"
+        const parts = modelId.split('/').pop() || modelId;
+        modelLabel = parts
+            .replace(/-preview$/, '')
+            .replace(/-/g, ' ')
+            .replace(/\b\w/g, c => c.toUpperCase())
+            .trim();
     }
 
+    const size = node.data.settings?.size;
     const resolution = node.data.settings?.resolution;
-    const ratio = node.data.settings?.aspectRatio || '16:9';
+    const aspectRatio = node.data.settings?.aspectRatio;
+    
+    // Loading 时显示的尺寸信息：
+    // - 有 aspectRatio → 显示比例（+ resolution 如果有）
+    // - 有 size → 直接显示 size（如 1024×1792），不转换比例
+    // - 都没有 → 不显示
+    const sizeDisplay = aspectRatio 
+        ? `${aspectRatio}${resolution ? ' · ' + resolution : ''}` 
+        : size 
+            ? size.replace('x', '×')
+            : '';
 
     // --- Adaptive Scale Logic ---
     const minScale = settings?.adaptiveZoomMin ?? 0.4;
@@ -200,10 +217,29 @@ export const ImageGenView: React.FC<NodeViewProps> = ({ node, contentHeight, zoo
         <div className="w-full bg-transparent flex flex-col relative group" style={{ height: contentHeight, borderRadius: '0 0 0 0' }}>
             {/* Image Container */}
             <div className="relative w-full flex-1 overflow-hidden flex items-center justify-center bg-gray-50 dark:bg-gray-800">
-                {node.data.outputResult ? (
+                {node.status === 'running' && node.data.outputResult && isImageContent(node.data.outputResult) ? (
+                    <>
+                        <img src={node.data.outputResult} className="w-full h-full object-contain opacity-40" draggable={false} onMouseDown={(e) => e.preventDefault()} />
+                        <div className="absolute inset-0 flex flex-col items-center justify-center bg-white/30 dark:bg-black/30 backdrop-blur-[2px]">
+                            <div className="w-10 h-10 rounded-full border-4 border-purple-100 dark:border-purple-900 border-t-purple-500 animate-spin"></div>
+                            <div className="text-xs font-medium text-gray-600 dark:text-gray-300 mt-3">
+                                生成中 {sizeDisplay}
+                            </div>
+                        </div>
+                    </>
+                ) : node.status === 'running' ? (
+                    <div className="flex flex-col items-center gap-3 text-purple-500">
+                        <div className="relative">
+                            <div className="w-10 h-10 rounded-full border-4 border-purple-100 dark:border-purple-900 border-t-purple-500 animate-spin"></div>
+                        </div>
+                        <div className="text-xs font-medium text-gray-500 dark:text-gray-400">
+                            生成中 {sizeDisplay}
+                        </div>
+                    </div>
+                ) : node.data.outputResult ? (
                     isImageContent(node.data.outputResult) ? (
                         <>
-                            <img src={node.data.outputResult} className="w-full h-full object-cover" draggable={false} onMouseDown={(e) => e.preventDefault()} /> 
+                            <img src={node.data.outputResult} className="w-full h-full object-contain" draggable={false} onMouseDown={(e) => e.preventDefault()} /> 
                             <button onClick={(e) => handleDownload(e, node.data.outputResult!, `gen_image_${node.id}.png`)} className="absolute bottom-2 right-2 p-1.5 bg-white shadow-sm border border-gray-200 text-gray-700 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity hover:bg-gray-50 z-20 scale-90"><Download size={14}/></button>
                         </>
                     ) : (
@@ -211,12 +247,6 @@ export const ImageGenView: React.FC<NodeViewProps> = ({ node, contentHeight, zoo
                              <div className="max-w-[80%] whitespace-pre-wrap">{node.data.outputResult}</div>
                         </div>
                     )
-                ) : node.status === 'running' ? (
-                    <div className="flex flex-col items-center gap-3 text-purple-500">
-                        <div className="relative">
-                            <div className="w-10 h-10 rounded-full border-4 border-purple-100 dark:border-purple-900 border-t-purple-500 animate-spin"></div>
-                        </div>
-                    </div>
                 ) : (
                     <div className="w-16 h-16 rounded-full bg-gray-100 dark:bg-gray-700/50 flex items-center justify-center">
                         <Palette size={24} className="text-gray-300 dark:text-gray-600"/>
@@ -230,7 +260,7 @@ export const ImageGenView: React.FC<NodeViewProps> = ({ node, contentHeight, zoo
                 style={{ height: `${40 * adaptiveScale}px` }}
             >
                  <div className="flex items-center gap-2.5">
-                    <div className="flex items-center gap-1.5" title={modelObj?.name}>
+                    <div className="flex items-center gap-1.5" title={modelId || ''}>
                         <span 
                             className="rounded-full bg-purple-500"
                             style={{ width: `${6 * adaptiveScale}px`, height: `${6 * adaptiveScale}px` }}
@@ -245,19 +275,13 @@ export const ImageGenView: React.FC<NodeViewProps> = ({ node, contentHeight, zoo
                  </div>
                  
                  <div className="flex items-center gap-2 opacity-60">
+                    {sizeDisplay && (
                     <span 
                         className="font-mono text-gray-500 dark:text-gray-400 border border-gray-200 dark:border-gray-700 px-1 rounded bg-gray-50 dark:bg-gray-800"
                         style={{ fontSize: `${9 * adaptiveScale}px` }}
                     >
-                        {ratio}
+                        {sizeDisplay}
                     </span>
-                    {resolution && (
-                        <span 
-                            className="font-mono text-gray-500 dark:text-gray-400 border border-gray-200 dark:border-gray-700 px-1 rounded bg-gray-50 dark:bg-gray-800"
-                            style={{ fontSize: `${9 * adaptiveScale}px` }}
-                        >
-                            {resolution}
-                        </span>
                     )}
                  </div>
             </div>
