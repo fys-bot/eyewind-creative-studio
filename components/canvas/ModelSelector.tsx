@@ -31,21 +31,13 @@ const getCanonicalName = (id: string): string => {
     return id.includes('/') ? id.split('/').pop()! : id;
 };
 
-/** Get display name — 从 model ID 提取可读名称（如 gpt-image-1） */
+/** Get display name — 优先用 label，否则从 ID 提取 */
 const getDisplayName = (model: ModelItem): string => {
-    const namePart = model.id.includes('/') ? model.id.split('/').pop()! : model.id;
-    return namePart
-        .replace(/[-_]/g, ' ')
-        .replace(/\b\w/g, c => c.toUpperCase())
-        .replace(/ To /g, ' to ')
-        .trim();
+    return model.label || (model.id.includes('/') ? model.id.split('/').pop()!.replace(/[-_]/g, ' ').replace(/\b\w/g, c => c.toUpperCase()).trim() : model.id);
 };
 
-/** Get hover title — 优先用 label，否则用完整 ID */
+/** Get hover title — 显示完整 model ID */
 const getHoverTitle = (model: ModelItem): string => {
-    if (model.label && model.label !== getDisplayName(model)) {
-        return `${model.label} (${model.id})`;
-    }
     return model.id;
 };
 
