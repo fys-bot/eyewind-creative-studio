@@ -577,6 +577,7 @@ const pollJob = async (
 
             const data = await response.json();
             console.log(`[AI Gateway] Job ${jobId}: status=${data.status}, attempt=${attemptCount}, progress=${data.progress || 0}%`);
+            console.log(`[AI Gateway] Full response data:`, JSON.stringify(data, null, 2));
             
             // 失败
             if (data.status === 'failed' || data.status === 'error') {
@@ -603,16 +604,27 @@ const pollJob = async (
                 throw new Error(errorMsg);
             }
             
-            // 完成 - 尝试多种结果字段
-            if (data.status === 'completed' || data.status === 'succeed') {
+            // 完成 - 尝试多种结果字段和状态值
+            if (data.status === 'completed' || data.status === 'succeed' || data.status === 'success' || data.status === 'done') {
                 const result = data.result || data.output || data;
                 const url = result[resultUrlField] 
                     || result.url 
                     || result.video_url 
                     || result.image_url 
                     || result.audio_url
-                    || result.data?.[0]?.url;
-                if (url) return url;
+                    || result.data?.[0]?.url
+                    || data.url
+                    || data.video_url
+                    || data.image_url
+                    || data.audio_url;
+                
+                if (url) {
+                    console.log(`[AI Gateway] Job ${jobId} completed, URL:`, url);
+                    return url;
+                }
+                
+                console.warn(`[AI Gateway] Job ${jobId} marked as completed but no URL found in response:`, data);
+                throw new Error('Generation completed but no result URL found');
             }
             
             // 继续轮询

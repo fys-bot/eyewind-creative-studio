@@ -1468,17 +1468,17 @@ const FloatingToolbar: React.FC<FloatingToolbarProps> = ({ node, edges, nodes, u
                 </div>
             )}
 
-            {/* 模型描述信息条 — 切换模型后显示 */}
-            {getCurrentModelInfo()?.description && (
-                <div className="flex items-start gap-2 px-1 py-1.5 rounded-lg bg-blue-50/50 dark:bg-blue-900/10 border border-blue-100/50 dark:border-blue-800/30">
-                    <Info size={12} className="text-blue-400 flex-shrink-0 mt-0.5" />
-                    <p className="text-[10px] text-gray-500 dark:text-gray-400 leading-relaxed line-clamp-2">{getCurrentModelInfo()!.description}</p>
-                </div>
-            )}
-
             {/* Other Generators Prompt (Image Gen / AI Refine) */}
             {['image_gen', 'ai_refine'].includes(node.type) && (
                  <div className="flex flex-col gap-1 relative">
+                     {/* 模型描述信息条 */}
+                     {getCurrentModelInfo()?.description && (
+                         <div className="flex items-start gap-2 px-1 py-1.5 rounded-lg bg-blue-50/50 dark:bg-blue-900/10 border border-blue-100/50 dark:border-blue-800/30">
+                             <Info size={12} className="text-blue-400 flex-shrink-0 mt-0.5" />
+                             <p className="text-[10px] text-gray-500 dark:text-gray-400 leading-relaxed line-clamp-2">{getCurrentModelInfo()!.description}</p>
+                         </div>
+                     )}
+                     
                      <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1 flex items-center gap-1">
                         <Sparkles size={10}/>
                         {node.data.label} Overrides
