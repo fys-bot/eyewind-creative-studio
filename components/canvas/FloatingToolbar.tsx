@@ -717,7 +717,11 @@ const FloatingToolbar: React.FC<FloatingToolbarProps> = ({ node, edges, nodes, u
       <div className="absolute bottom-full right-0 mb-3 bg-white dark:bg-gray-800 rounded-xl shadow-2xl border border-gray-100 dark:border-gray-700 p-3 w-64 z-50 animate-in fade-in zoom-in-95 origin-bottom-right"
           onMouseDown={(e) => e.stopPropagation()} onClick={(e) => e.stopPropagation()}>
           <div className="absolute -bottom-1.5 right-11 w-3 h-3 bg-white dark:bg-gray-800 border-b border-r border-gray-100 dark:border-gray-700 transform rotate-45"></div>
-          <button onClick={() => setShowSettingsPopover(false)} className="absolute top-2 right-2 p-1 rounded-md text-gray-400 hover:text-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors z-10">
+          <button 
+              onClick={(e) => { e.stopPropagation(); e.preventDefault(); setShowSettingsPopover(false); }} 
+              onMouseDown={(e) => { e.stopPropagation(); e.preventDefault(); }}
+              onPointerDown={(e) => { e.stopPropagation(); e.preventDefault(); }}
+              className="absolute top-2 right-2 p-1 rounded-md text-gray-400 hover:text-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors z-30">
               <X size={14} />
           </button>
           
