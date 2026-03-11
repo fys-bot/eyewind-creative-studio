@@ -139,7 +139,11 @@ const ModelSelector: React.FC<ModelSelectorProps> = ({ models, value, onChange, 
             </button>
 
             {isOpen && (<>
-                <div className="fixed inset-0 z-[9998]" onClick={() => { setIsOpen(false); setSearch(''); }} />
+                <div className="fixed inset-0 z-[9998]" 
+                    onClick={(e) => { e.stopPropagation(); setIsOpen(false); setSearch(''); }} 
+                    onMouseDown={(e) => e.stopPropagation()} 
+                    onPointerDown={(e) => e.stopPropagation()} 
+                />
                 <div className="absolute left-0 right-0 bottom-full mb-1 z-[9999] bg-white dark:bg-gray-800 rounded-xl shadow-2xl border border-gray-200 dark:border-gray-700 flex flex-col animate-in fade-in zoom-in-95 origin-bottom"
                     style={{ height: '340px', minWidth: '240px' }} onMouseDown={(e) => e.stopPropagation()} onTouchStart={(e) => e.stopPropagation()}>
                     {/* Search */}
