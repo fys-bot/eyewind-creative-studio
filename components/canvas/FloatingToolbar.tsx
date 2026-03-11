@@ -1554,7 +1554,7 @@ const FloatingToolbar: React.FC<FloatingToolbarProps> = ({ node, edges, nodes, u
 
         {/* --- 其他节点的通用页脚 --- */}
         {showFooter && node.type !== 'video_gen' && (
-          <div className="px-4 py-3 bg-gray-50/80 dark:bg-gray-800/80 border-t border-gray-100 dark:border-gray-700 flex items-center gap-3 rounded-b-2xl">
+          <div className="px-4 py-2.5 bg-gray-50/80 dark:bg-gray-800/80 border-t border-gray-100 dark:border-gray-700 flex flex-wrap items-center gap-2 rounded-b-2xl">
              
              {/* 模型选择器 (Script Agent 在上方已有模型选择器, Audio Gen 在下方有专用选择器, Video Composer 不需要模型) */}
              {node.type !== 'script_agent' && node.type !== 'audio_gen' && node.type !== 'video_composer' && (
@@ -1571,7 +1571,7 @@ const FloatingToolbar: React.FC<FloatingToolbarProps> = ({ node, edges, nodes, u
                          href={getCurrentModelInfo()!.docsUrl}
                          target="_blank"
                          rel="noopener noreferrer"
-                         className="p-1.5 rounded-lg text-gray-400 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/30 transition-all flex-shrink-0"
+                         className="p-1 rounded-md text-gray-400 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/30 transition-all flex-shrink-0"
                          title={getCurrentModelInfo()?.description || 'Model Documentation'}
                          onClick={(e) => e.stopPropagation()}
                          onMouseDown={(e) => e.stopPropagation()}
@@ -1598,7 +1598,7 @@ const FloatingToolbar: React.FC<FloatingToolbarProps> = ({ node, edges, nodes, u
                  node.status === 'running' ? (
                      <button 
                          onClick={(e) => { e.stopPropagation(); cancelAllPolls(); onCancelRun?.(); }}
-                         className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all shadow-sm ml-auto bg-red-500 text-white hover:bg-red-600"
+                         className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all shadow-sm ml-auto whitespace-nowrap flex-shrink-0 bg-red-500 text-white hover:bg-red-600"
                      >
                         <X size={12} />
                         <span>{lang === 'zh' || lang === 'tw' ? '停止' : 'Stop'}</span>
@@ -1606,7 +1606,7 @@ const FloatingToolbar: React.FC<FloatingToolbarProps> = ({ node, edges, nodes, u
                  ) : (
                      <button 
                          onClick={onRun}
-                         className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all shadow-sm ml-auto bg-indigo-600 text-white hover:bg-indigo-700`}
+                         className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all shadow-sm ml-auto whitespace-nowrap flex-shrink-0 bg-indigo-600 text-white hover:bg-indigo-700"
                      >
                         <Sparkles size={12} fill="currentColor" />
                         <span>Generate</span>
@@ -1614,7 +1614,7 @@ const FloatingToolbar: React.FC<FloatingToolbarProps> = ({ node, edges, nodes, u
                  )
              )}
 
-             {node.type !== 'script_agent' && <div className="w-px h-4 bg-gray-200 dark:bg-gray-600"></div>}
+             {node.type !== 'script_agent' && <div className="w-px h-4 bg-gray-200 dark:bg-gray-600 flex-shrink-0"></div>}
 
              {/* 图片设置选择器 (Image/ImageInput) - 动态从 docs-json 获取 */}
              {['image_gen', 'image_input'].includes(node.type) && !imageUsesAspectRatio() && (
@@ -1744,7 +1744,7 @@ const FloatingToolbar: React.FC<FloatingToolbarProps> = ({ node, edges, nodes, u
                         cancelAllPolls();
                         onCancelRun?.();
                     }}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all shadow-sm ml-auto bg-red-500 text-white hover:bg-red-600"
+                    className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all shadow-sm ml-auto whitespace-nowrap flex-shrink-0 bg-red-500 text-white hover:bg-red-600"
                  >
                     <X size={12} />
                     <span>{lang === 'zh' || lang === 'tw' ? '停止' : 'Stop'}</span>
@@ -1766,7 +1766,7 @@ const FloatingToolbar: React.FC<FloatingToolbarProps> = ({ node, edges, nodes, u
                     }
                 }}
                 disabled={node.type === 'image_input' ? (isGeneratingRef || !refImgDesc) : (node.type === 'video_composer' ? false : isLoadingSchema)}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all shadow-sm ml-auto
+                className={`flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all shadow-sm ml-auto whitespace-nowrap flex-shrink-0
                     ${(isLoadingSchema && node.type !== 'video_composer')
                         ? 'bg-gray-100 dark:bg-gray-700 text-gray-400 cursor-wait'
                         : (node.type === 'image_input' && isGeneratingRef)

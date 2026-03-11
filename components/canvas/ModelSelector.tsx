@@ -141,7 +141,7 @@ const ModelSelector: React.FC<ModelSelectorProps> = ({ models, value, onChange, 
             {isOpen && (<>
                 <div className="fixed inset-0 z-[9998]" onClick={() => { setIsOpen(false); setSearch(''); }} />
                 <div className="absolute left-0 right-0 bottom-full mb-1 z-[9999] bg-white dark:bg-gray-800 rounded-xl shadow-2xl border border-gray-200 dark:border-gray-700 flex flex-col animate-in fade-in zoom-in-95 origin-bottom"
-                    style={{ height: '340px', minWidth: '240px' }} onMouseDown={(e) => e.stopPropagation()} onTouchStart={(e) => e.stopPropagation()}>
+                    style={{ maxHeight: '340px', minWidth: '240px' }} onMouseDown={(e) => e.stopPropagation()} onTouchStart={(e) => e.stopPropagation()}>
                     {/* Search */}
                     <div className="shrink-0 bg-white dark:bg-gray-800 border-b border-gray-100 dark:border-gray-700 p-2 rounded-t-xl">
                         <div className="relative">
@@ -160,8 +160,8 @@ const ModelSelector: React.FC<ModelSelectorProps> = ({ models, value, onChange, 
                         {/* Favorites Section */}
                         {favoriteModels.length > 0 && (
                             <div>
-                                <div className="sticky top-0 px-3 py-1.5 text-[10px] font-bold text-yellow-500 dark:text-yellow-400 uppercase tracking-wider bg-yellow-50/95 dark:bg-yellow-900/20 backdrop-blur-sm border-b border-yellow-100/50 dark:border-yellow-800/30 z-[1] flex items-center gap-1">
-                                    <Star size={10} fill="currentColor" /> 收藏 <span className="text-yellow-400/60 font-normal">({favoriteModels.length})</span>
+                                <div className="sticky top-0 px-3 py-1 text-[10px] font-bold text-yellow-500 dark:text-yellow-400 uppercase tracking-wider bg-yellow-50/95 dark:bg-yellow-900/20 backdrop-blur-sm border-b border-yellow-100/50 dark:border-yellow-800/30 z-[2] flex items-center gap-1">
+                                    <Star size={9} fill="currentColor" /> 收藏 <span className="text-yellow-400/60 font-normal">({favoriteModels.length})</span>
                                 </div>
                                 {favoriteModels.map(m => renderModelItem(m, true))}
                             </div>
@@ -169,16 +169,14 @@ const ModelSelector: React.FC<ModelSelectorProps> = ({ models, value, onChange, 
 
                         {groups.length === 0 ? (
                             <div className="p-4 text-center text-xs text-gray-400">No models found</div>
-                        ) : groups.map(([groupName, groupModels]) => {
-                            return (
-                                <div key={groupName}>
-                                    <div className="sticky top-0 px-3 py-1.5 text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider bg-gray-50/95 dark:bg-gray-900/95 backdrop-blur-sm border-b border-gray-100/50 dark:border-gray-700/50 z-[1]">
-                                        {groupName} <span className="text-gray-300 dark:text-gray-600 font-normal">({groupModels.length})</span>
-                                    </div>
-                                    {groupModels.map(m => renderModelItem(m))}
+                        ) : groups.map(([groupName, groupModels]) => (
+                            <div key={groupName}>
+                                <div className="sticky top-0 px-3 py-1 text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider bg-gray-50/95 dark:bg-gray-900/95 backdrop-blur-sm border-b border-gray-100/50 dark:border-gray-700/50 z-[1]">
+                                    {groupName} <span className="text-gray-300 dark:text-gray-600 font-normal">({groupModels.length})</span>
                                 </div>
-                            );
-                        })}
+                                {groupModels.map(m => renderModelItem(m))}
+                            </div>
+                        ))}
                     </div>
                 </div>
             </>)}
