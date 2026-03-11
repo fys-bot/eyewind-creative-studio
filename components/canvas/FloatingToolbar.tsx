@@ -741,31 +741,12 @@ const FloatingToolbar: React.FC<FloatingToolbarProps> = ({ node, edges, nodes, u
 
           <div className="mb-3 relative z-10">
               <div className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-2">Duration</div>
-              {durationOptions.length <= 6 ? (
-                  <div className="flex flex-col gap-1.5">
-                      <div className="flex gap-1.5 items-center flex-wrap">
-                          {durationOptions.map(d => (
-                              <button key={d.value} onClick={() => updateNodeData({ settings: { ...node.data.settings, duration: d.value }})} className={`flex-1 min-w-[36px] py-1.5 rounded-lg text-xs font-bold border transition-all ${node.data.settings?.duration === d.value ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 shadow-sm' : 'border-transparent bg-gray-50 dark:bg-gray-700/50 hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300'}`}>{d.label}</button>
-                          ))}
-                      </div>
-                      <div className="flex items-center gap-1.5">
-                          <input 
-                              type="number" 
-                              min={durationParam?.minimum || 1} 
-                              max={durationParam?.maximum || 120}
-                              value={node.data.settings?.duration || durationOptions[0]?.value || 5}
-                              onChange={(e) => {
-                                  const val = parseInt(e.target.value) || 5;
-                                  updateNodeData({ settings: { ...node.data.settings, duration: val }});
-                              }}
-                              className="flex-1 px-2 py-1 rounded-lg text-xs font-bold border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                              placeholder="自定义"
-                          />
-                          <span className="text-xs text-gray-400">s</span>
-                      </div>
-                  </div>
-              ) : (
-                  <div className="flex gap-1.5 items-center">
+              <div className="flex gap-1.5 items-center">
+                  {durationOptions.length <= 6 ? (
+                      durationOptions.map(d => (
+                          <button key={d.value} onClick={() => updateNodeData({ settings: { ...node.data.settings, duration: d.value }})} className={`flex-1 min-w-[36px] py-1.5 rounded-lg text-xs font-bold border transition-all ${node.data.settings?.duration === d.value ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 shadow-sm' : 'border-transparent bg-gray-50 dark:bg-gray-700/50 hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300'}`}>{d.label}</button>
+                      ))
+                  ) : (
                       <div className="relative flex-1">
                           <select
                               value={node.data.settings?.duration || durationOptions[0]?.value || 5}
@@ -780,21 +761,21 @@ const FloatingToolbar: React.FC<FloatingToolbarProps> = ({ node, edges, nodes, u
                               <ChevronDown size={10} />
                           </div>
                       </div>
-                      <input 
-                          type="number" 
-                          min={durationParam?.minimum || 1} 
-                          max={durationParam?.maximum || 120}
-                          value={node.data.settings?.duration || 5}
-                          onChange={(e) => {
-                              const val = parseInt(e.target.value) || 5;
-                              updateNodeData({ settings: { ...node.data.settings, duration: val }});
-                          }}
-                          className="w-16 px-2 py-1.5 rounded-lg text-xs font-bold border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                          placeholder="自定义"
-                      />
-                      <span className="text-xs text-gray-400">s</span>
-                  </div>
-              )}
+                  )}
+                  <input 
+                      type="number" 
+                      min={durationParam?.minimum || 1} 
+                      max={durationParam?.maximum || 120}
+                      value={node.data.settings?.duration || durationOptions[0]?.value || 5}
+                      onChange={(e) => {
+                          const val = parseInt(e.target.value) || 5;
+                          updateNodeData({ settings: { ...node.data.settings, duration: val }});
+                      }}
+                      onKeyDown={(e) => e.stopPropagation()}
+                      className="w-12 px-1.5 py-1.5 rounded-lg text-xs font-bold border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 focus:outline-none focus:ring-1 focus:ring-blue-500 text-center"
+                  />
+                  <span className="text-[10px] text-gray-400">s</span>
+              </div>
           </div>
 
           <div className="relative z-10">
