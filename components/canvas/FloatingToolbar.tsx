@@ -1557,7 +1557,7 @@ const FloatingToolbar: React.FC<FloatingToolbarProps> = ({ node, edges, nodes, u
 
         {/* --- 其他节点的通用页脚 --- */}
         {showFooter && node.type !== 'video_gen' && (
-          <div className="px-4 py-2.5 bg-gray-50/80 dark:bg-gray-800/80 border-t border-gray-100 dark:border-gray-700 flex flex-wrap items-center gap-2 rounded-b-2xl">
+          <div className="px-3 py-2 bg-gray-50/80 dark:bg-gray-800/80 border-t border-gray-100 dark:border-gray-700 flex items-center gap-1.5 rounded-b-2xl overflow-hidden">
              
              {/* 模型选择器 (Script Agent 在上方已有模型选择器, Audio Gen 在下方有专用选择器, Video Composer 不需要模型) */}
              {node.type !== 'script_agent' && node.type !== 'audio_gen' && node.type !== 'video_composer' && (
@@ -1567,7 +1567,7 @@ const FloatingToolbar: React.FC<FloatingToolbarProps> = ({ node, edges, nodes, u
                      value={node.data.settings?.model}
                      onChange={(modelId) => updateNodeData({ settings: { ...node.data.settings, model: modelId }})}
                      isLoading={isLoadingModels && dynamicModels.length === 0}
-                     className="flex-1 min-w-[120px]"
+                     className="flex-1 min-w-0"
                  />
                  {getCurrentModelInfo()?.docsUrl && (
                      <button
