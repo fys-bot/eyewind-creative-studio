@@ -270,7 +270,17 @@ export const useCanvasInteraction = ({
       const onPointerDown = (e: PointerEvent) => {
           // Priority 0: Check for interactive elements
           const target = e.target as Element;
-          if (target.closest('button, input, textarea, select, label, video, audio, [contenteditable="true"], .node-handle, .react-flow__handle, .node-editable-title, .video-player-area, .floating-toolbar')) {
+          
+          // 检查是否点击在 floating toolbar 内（包括所有子元素）
+          const toolbarElement = target.closest('.floating-toolbar');
+          if (toolbarElement) {
+              // 点击在 toolbar 内，完全阻止 canvas 交互
+              e.stopPropagation();
+              return;
+          }
+          
+          // 检查其他交互元素
+          if (target.closest('button, input, textarea, select, label, video, audio, [contenteditable="true"], .node-handle, .react-flow__handle, .node-editable-title, .video-player-area')) {
                return;
           }
 
