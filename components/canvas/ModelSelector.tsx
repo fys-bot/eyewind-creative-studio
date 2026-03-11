@@ -55,14 +55,15 @@ const ModelSelector: React.FC<ModelSelectorProps> = ({ models, value, onChange, 
 
     useEffect(() => {
         if (!isOpen) return;
-        const handler = (e: MouseEvent) => {
+        // 使用 pointerdown capture 阶段，不受父组件 stopPropagation 影响
+        const handler = (e: PointerEvent) => {
             if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
                 setIsOpen(false);
                 setSearch('');
             }
         };
-        document.addEventListener('mousedown', handler);
-        return () => document.removeEventListener('mousedown', handler);
+        document.addEventListener('pointerdown', handler, true);
+        return () => document.removeEventListener('pointerdown', handler, true);
     }, [isOpen]);
 
     useEffect(() => { if (isOpen && searchRef.current) setTimeout(() => searchRef.current?.focus(), 50); }, [isOpen]);
