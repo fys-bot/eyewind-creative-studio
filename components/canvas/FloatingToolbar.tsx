@@ -850,7 +850,7 @@ const FloatingToolbar: React.FC<FloatingToolbarProps> = ({ node, edges, nodes, u
                            }
                        });
                    }}
-                   isLoading={isLoadingModels}
+                   isLoading={isLoadingModels && dynamicModels.length === 0}
                    icon={<Video size={12}/>}
                    className="flex-1 min-w-0"
                />
@@ -1394,7 +1394,7 @@ const FloatingToolbar: React.FC<FloatingToolbarProps> = ({ node, edges, nodes, u
                             models={getModelList()}
                             value={node.data.settings?.model || 'gpt-4o'}
                             onChange={(modelId) => updateNodeData({ settings: { ...node.data.settings, model: modelId }})}
-                            isLoading={isLoadingModels}
+                            isLoading={isLoadingModels && dynamicModels.length === 0}
                             className="w-44"
                         />
                     </div>
@@ -1558,13 +1558,29 @@ const FloatingToolbar: React.FC<FloatingToolbarProps> = ({ node, edges, nodes, u
              
              {/* 模型选择器 (Script Agent 在上方已有模型选择器, Audio Gen 在下方有专用选择器, Video Composer 不需要模型) */}
              {node.type !== 'script_agent' && node.type !== 'audio_gen' && node.type !== 'video_composer' && (
+                 <>
                  <ModelSelector
                      models={getModelList()}
                      value={node.data.settings?.model}
                      onChange={(modelId) => updateNodeData({ settings: { ...node.data.settings, model: modelId }})}
-                     isLoading={isLoadingModels}
+                     isLoading={isLoadingModels && dynamicModels.length === 0}
                      className="flex-1 min-w-[120px]"
                  />
+                 {getCurrentModelInfo()?.docsUrl && (
+                     <a
+                         href={getCurrentModelInfo()!.docsUrl}
+                         target="_blank"
+                         rel="noopener noreferrer"
+                         className="p-1.5 rounded-lg text-gray-400 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/30 transition-all flex-shrink-0"
+                         title={getCurrentModelInfo()?.description || 'Model Documentation'}
+                         onClick={(e) => e.stopPropagation()}
+                         onMouseDown={(e) => e.stopPropagation()}
+                         onPointerDown={(e) => e.stopPropagation()}
+                     >
+                         <FileText size={14} />
+                     </a>
+                 )}
+                 </>
              )}
              
              {/* Agent Role Display (Visual only, changed via dropdown above) */}
@@ -1689,7 +1705,7 @@ const FloatingToolbar: React.FC<FloatingToolbarProps> = ({ node, edges, nodes, u
                          models={getModelList()}
                          value={node.data.settings?.model || 'gpt-4o-audio-preview'}
                          onChange={(modelId) => updateNodeData({ settings: { ...node.data.settings, model: modelId }})}
-                         isLoading={isLoadingModels}
+                         isLoading={isLoadingModels && dynamicModels.length === 0}
                          icon={<Headphones size={12}/>}
                          className="w-36"
                      />

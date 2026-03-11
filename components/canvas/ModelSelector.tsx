@@ -48,7 +48,6 @@ const getHoverTitle = (model: ModelItem): string => model.id;
 const ModelSelector: React.FC<ModelSelectorProps> = ({ models, value, onChange, isLoading, placeholder = 'Select Model', icon, className }) => {
     const [isOpen, setIsOpen] = useState(false);
     const [search, setSearch] = useState('');
-    const [showAll, setShowAll] = useState(true);
     const [favorites, setFavorites] = useState<Set<string>>(() => getFavorites());
     const containerRef = useRef<HTMLDivElement>(null);
     const searchRef = useRef<HTMLInputElement>(null);
@@ -171,52 +170,16 @@ const ModelSelector: React.FC<ModelSelectorProps> = ({ models, value, onChange, 
                         {groups.length === 0 ? (
                             <div className="p-4 text-center text-xs text-gray-400">No models found</div>
                         ) : groups.map(([groupName, groupModels]) => {
-                            const isSearching = search.trim().length > 0;
-                            let visibleModels: ModelItem[];
-                            if (showAll || isSearching) {
-                                visibleModels = groupModels;
-                            } else {
-                                const scored = groupModels.map(m => {
-                                    const name = getDisplayName(m).toLowerCase(); const id = m.id.toLowerCase(); let score = 0;
-                                    if (/\bpro\b/.test(name) && !/\bedit\b/.test(name)) score += 10;
-                                    if (/\bultra\b/.test(name) && !/\bedit\b/.test(name)) score += 10;
-                                    if (/\bturbo\b/.test(name)) score += 8; if (/\bmax\b/.test(name)) score += 8;
-                                    if (/\bplus\b/.test(name)) score += 6; if (/\bfast\b/.test(name) && !/\bedit\b/.test(name)) score += 4;
-                                    if (/\bedit\b/.test(name)) score -= 3; if (/\bpreview\b/.test(name)) score -= 2; if (/\bdraft\b/.test(name)) score -= 3;
-                                    const verMatch = id.match(/(\d+)\.(\d+)/); if (verMatch) score += parseFloat(`${verMatch[1]}.${verMatch[2]}`);
-                                    const vMatch = id.match(/v(\d+)/); if (vMatch) score += parseInt(vMatch[1]) * 2;
-                                    return { model: m, score };
-                                });
-                                scored.sort((a, b) => b.score - a.score);
-                                visibleModels = scored.slice(0, 3).map(s => s.model);
-                            }
-                            const hiddenCount = groupModels.length - visibleModels.length;
                             return (
                                 <div key={groupName}>
                                     <div className="sticky top-0 px-3 py-1.5 text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider bg-gray-50/95 dark:bg-gray-900/95 backdrop-blur-sm border-b border-gray-100/50 dark:border-gray-700/50 z-[1]">
                                         {groupName} <span className="text-gray-300 dark:text-gray-600 font-normal">({groupModels.length})</span>
                                     </div>
-                                    {visibleModels.map(m => renderModelItem(m))}
-                                    {hiddenCount > 0 && !isSearching && (
-                                        <button onClick={(e) => { e.stopPropagation(); setShowAll(true); }}
-                                            className="w-full text-left px-3 py-1 text-[10px] text-blue-500 hover:text-blue-600 hover:bg-blue-50/50 dark:hover:bg-blue-900/20 transition-colors">
-                                            +{hiddenCount} more...
-                                        </button>
-                                    )}
+                                    {groupModels.map(m => renderModelItem(m))}
                                 </div>
                             );
                         })}
                     </div>
-
-                    {/* Footer toggle */}
-                    {!search.trim() && totalCount > groups.length * 3 && (
-                        <div className="shrink-0 border-t border-gray-100 dark:border-gray-700 px-3 py-1.5 bg-white dark:bg-gray-800 rounded-b-xl">
-                            <button onClick={(e) => { e.stopPropagation(); setShowAll(!showAll); }}
-                                className="w-full text-center text-[10px] font-medium text-blue-500 hover:text-blue-600 transition-colors py-0.5">
-                                {showAll ? '收起精选' : '展开全部'}
-                            </button>
-                        </div>
-                    )}
                 </div>
             </>)}
         </div>
