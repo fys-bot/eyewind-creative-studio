@@ -9,7 +9,7 @@ import { cancelAllPolls } from '../../services/aiGatewayService';
 import { uploadAsset } from '../../services/storageService'; // Import Upload Service
 import { getNodeContentHeight, getNodeWidth } from '../../utils/nodeUtils';
 import { useToast } from '../ui/ToastContext';
-import { getVideoModels, getAudioModels, getImageModels, getTextModels, AIModel, getModelSchema, ModelSchema, hasModelCache, hasSchemaCache } from '../../services/modelService';
+import { getVideoModels, getAudioModels, getImageModels, getTextModels, AIModel, getModelSchema, ModelSchema, hasSchemaCache } from '../../services/modelService';
 
 import VideoGenFrames from './toolbar/VideoGenFrames';
 import ModelSelector from './ModelSelector';
@@ -66,10 +66,9 @@ const FloatingToolbar: React.FC<FloatingToolbarProps> = ({ node, edges, nodes, u
 
   // 加载动态模型列表
   useEffect(() => {
+    let cancelled = false;
     const loadModels = async () => {
-      // 只在没有缓存时才显示 loading，避免缓存命中时闪烁
-      const showLoading = !hasModelCache();
-      if (showLoading) setIsLoadingModels(true);
+      setIsLoadingModels(true);
       try {
         let models: AIModel[] = [];
         if (node.type === 'video_gen' || node.type === 'video_composer') {
@@ -82,18 +81,19 @@ const FloatingToolbar: React.FC<FloatingToolbarProps> = ({ node, edges, nodes, u
           models = await getTextModels();
         }
         
-        if (models.length > 0) {
+        if (!cancelled && models.length > 0) {
           setDynamicModels(models);
           console.log(`[FloatingToolbar] Loaded ${models.length} dynamic models for ${node.type}`);
         }
       } catch (error) {
         console.error('[FloatingToolbar] Failed to load models:', error);
       } finally {
-        setIsLoadingModels(false);
+        if (!cancelled) setIsLoadingModels(false);
       }
     };
     
     loadModels();
+    return () => { cancelled = true; };
   }, [node.type]);
 
   // 当模型切换时，调用 /v1/docs-json?model={id} 获取该模型的 API Schema
