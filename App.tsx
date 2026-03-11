@@ -1176,11 +1176,15 @@ const AppContent: React.FC = () => {
   const handleRunNode = async (nodeId: string) => {
       const node = nodes.find(n => n.id === nodeId);
       if (!node) return;
+      
+      console.log(`[Node Execution] 🚀 开始执行节点: ${node.data.label || node.type} (${nodeId})`);
       setNodes(prev => prev.map(n => n.id === nodeId ? { ...n, status: 'running', errorMessage: undefined } : n));
 
       try {
           const processor = nodeRegistry.get(node.type);
           if (!processor) throw new Error(`Processor not found for type: ${node.type}`);
+
+          console.log(`[Node Execution] ✓ 找到处理器: ${node.type}`);
 
           const inputValues: Record<string, any> = {};
           const inputLabels: Record<string, string> = {};
@@ -1190,6 +1194,7 @@ const AppContent: React.FC = () => {
           // We search for known node labels in the prompt string
           const promptValue = node.data.settings?.value || node.data.value;
           if (typeof promptValue === 'string' && promptValue.includes('@')) {
+              console.log(`[Node Execution] 🔍 检测到 @ 引用，开始解析...`);
               // Get all potential reference targets (nodes other than self)
               const potentialTargets = nodes.filter(n => n.id !== nodeId).map(n => ({
                   id: n.id,
@@ -1211,12 +1216,14 @@ const AppContent: React.FC = () => {
 
                       if (refData) {
                           references[target.label] = refData;
+                          console.log(`[Node Execution]   ✓ 解析引用: @${target.label} -> ${String(refData).substring(0, 50)}...`);
                       }
                   }
               }
           }
 
           const inputs = processor.getInputs() || [];
+          console.log(`[Node Execution] 📥 处理输入端口 (${inputs.length} 个)...`);
           
           const usedEdges = new Set<string>();
 
@@ -1300,8 +1307,15 @@ const AppContent: React.FC = () => {
              const val = resolveInputData(nodeId, input.id, input.type, new Set());
              if (val) {
                  inputValues[input.id] = val;
+                 console.log(`[Node Execution]   ✓ 输入 "${input.id}": ${typeof val === 'string' ? val.substring(0, 50) + '...' : typeof val}`);
              }
           }
+
+          console.log(`[Node Execution] 🎯 准备执行节点处理器...`);
+          console.log(`[Node Execution]   - 输入数量: ${Object.keys(inputValues).length}`);
+          console.log(`[Node Execution]   - 引用数量: ${Object.keys(references).length}`);
+          const settingsStr = JSON.stringify(node.data.settings || {});
+          console.log(`[Node Execution]   - 设置: ${settingsStr.length > 100 ? settingsStr.substring(0, 100) + '...' : settingsStr}`);
 
           const context = {
               inputs: inputValues,
@@ -1311,6 +1325,11 @@ const AppContent: React.FC = () => {
           };
 
           const result = await processor.execute(context);
+          
+          console.log(`[Node Execution] ✅ 节点执行完成！`);
+          console.log(`[Node Execution]   - 结果类型: ${typeof result}`);
+          console.log(`[Node Execution]   - 结果预览: ${typeof result === 'string' ? result.substring(0, 100) + '...' : JSON.stringify(result).substring(0, 100)}`);
+          
           setNodes(prev => prev.map(n => {
               if (n.id === nodeId) {
                   let updates: any = { status: 'done' };
@@ -1325,7 +1344,7 @@ const AppContent: React.FC = () => {
           }));
 
       } catch (error: any) {
-          console.error(error);
+          console.error(`[Node Execution] ❌ 节点执行失败:`, error);
           const safeErrorMsg = error?.message || "Unknown error";
           setNodes(prev => prev.map(n => n.id === nodeId ? { ...n, status: 'error', errorMessage: safeErrorMsg } : n));
           
