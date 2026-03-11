@@ -46,7 +46,7 @@ const MAX_PER_GROUP = 3; // 每组默认显示的模型数
 const ModelSelector: React.FC<ModelSelectorProps> = ({ models, value, onChange, isLoading, placeholder = 'Select Model', icon, className }) => {
     const [isOpen, setIsOpen] = useState(false);
     const [search, setSearch] = useState('');
-    const [showAll, setShowAll] = useState(false);
+    const [showAll, setShowAll] = useState(true);
     const containerRef = useRef<HTMLDivElement>(null);
     const searchRef = useRef<HTMLInputElement>(null);
     const listRef = useRef<HTMLDivElement>(null);
@@ -291,7 +291,7 @@ const ModelSelector: React.FC<ModelSelectorProps> = ({ models, value, onChange, 
                                     onClick={(e) => { e.stopPropagation(); setShowAll(!showAll); }}
                                     className="w-full text-center text-[10px] font-medium text-blue-500 hover:text-blue-600 transition-colors py-0.5"
                                 >
-                                    {showAll ? '收起精选' : `展开全部 ${totalCount} 个模型`}
+                                    {showAll ? `收起精选` : '展开全部'}
                                 </button>
                             </div>
                         )}
