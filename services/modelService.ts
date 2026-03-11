@@ -402,6 +402,17 @@ export const getTextModels = async (): Promise<AIModel[]> => getModelsByType('te
 
 // === 缓存管理 ===
 
+/** 同步检查是否有有效的模型缓存 */
+export const hasModelCache = (): boolean => {
+    return cachedModels !== null && cachedModels.length > 0 && (Date.now() - lastFetchTime) < CACHE_DURATION;
+};
+
+/** 同步检查指定模型是否有有效的 schema 缓存 */
+export const hasSchemaCache = (modelId: string): boolean => {
+    const cached = schemaCache.get(modelId);
+    return !!cached && (Date.now() - cached.time) < SCHEMA_CACHE_DURATION;
+};
+
 export const clearModelCache = () => {
     cachedModels = null;
     lastFetchTime = 0;

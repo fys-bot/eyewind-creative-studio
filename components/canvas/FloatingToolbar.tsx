@@ -9,7 +9,7 @@ import { cancelAllPolls } from '../../services/aiGatewayService';
 import { uploadAsset } from '../../services/storageService'; // Import Upload Service
 import { getNodeContentHeight, getNodeWidth } from '../../utils/nodeUtils';
 import { useToast } from '../ui/ToastContext';
-import { getVideoModels, getAudioModels, getImageModels, getTextModels, AIModel, getModelSchema, ModelSchema } from '../../services/modelService';
+import { getVideoModels, getAudioModels, getImageModels, getTextModels, AIModel, getModelSchema, ModelSchema, hasModelCache, hasSchemaCache } from '../../services/modelService';
 
 import VideoGenFrames from './toolbar/VideoGenFrames';
 import ModelSelector from './ModelSelector';
@@ -67,7 +67,9 @@ const FloatingToolbar: React.FC<FloatingToolbarProps> = ({ node, edges, nodes, u
   // 加载动态模型列表
   useEffect(() => {
     const loadModels = async () => {
-      setIsLoadingModels(true);
+      // 只在没有缓存时才显示 loading，避免缓存命中时闪烁
+      const showLoading = !hasModelCache();
+      if (showLoading) setIsLoadingModels(true);
       try {
         let models: AIModel[] = [];
         if (node.type === 'video_gen' || node.type === 'video_composer') {
@@ -104,7 +106,8 @@ const FloatingToolbar: React.FC<FloatingToolbarProps> = ({ node, edges, nodes, u
     
     let cancelled = false;
     const loadSchema = async () => {
-      setIsLoadingSchema(true);
+      // 只在没有缓存时才显示 loading
+      if (!hasSchemaCache(modelId)) setIsLoadingSchema(true);
       try {
         const schema = await getModelSchema(modelId);
         if (!cancelled) {
@@ -1567,18 +1570,16 @@ const FloatingToolbar: React.FC<FloatingToolbarProps> = ({ node, edges, nodes, u
                      className="flex-1 min-w-[120px]"
                  />
                  {getCurrentModelInfo()?.docsUrl && (
-                     <a
-                         href={getCurrentModelInfo()!.docsUrl}
-                         target="_blank"
-                         rel="noopener noreferrer"
+                     <button
+                         type="button"
                          className="p-1 rounded-md text-gray-400 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/30 transition-all flex-shrink-0"
                          title={getCurrentModelInfo()?.description || 'Model Documentation'}
-                         onClick={(e) => e.stopPropagation()}
-                         onMouseDown={(e) => e.stopPropagation()}
-                         onPointerDown={(e) => e.stopPropagation()}
+                         onClick={(e) => { e.stopPropagation(); e.preventDefault(); window.open(getCurrentModelInfo()!.docsUrl, '_blank', 'noopener,noreferrer'); }}
+                         onMouseDown={(e) => { e.stopPropagation(); e.preventDefault(); }}
+                         onPointerDown={(e) => { e.stopPropagation(); e.preventDefault(); }}
                      >
                          <FileText size={14} />
-                     </a>
+                     </button>
                  )}
                  </>
              )}
