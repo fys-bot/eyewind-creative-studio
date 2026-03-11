@@ -4,7 +4,7 @@ import { AlertCircle, Upload, Sparkles, Loader2, Zap, ChevronDown, ChevronUp, Mi
 import { WorkflowNode, WorkflowEdge, AspectRatio, ModelType, Resolution } from '../../types';
 import { MODELS as MODELS_CONST, ASPECT_RATIOS as ASPECT_RATIOS_CONST, BASIC_ASPECT_RATIOS, AUDIO_VOICES as AUDIO_VOICES_CONST, AUDIO_CATEGORIES, RESOLUTIONS, IMAGE_RESOLUTIONS, IMAGE_SIZES, DURATIONS, AGENT_ROLES } from '../../constants';
 import { translations, Language } from '../../utils/translations';
-import { generateCharacterReference, requestApiKey, generateImage } from '../../services/generationService';
+import { generateCharacterReference, generateImage } from '../../services/generationService';
 import { cancelAllPolls } from '../../services/aiGatewayService';
 import { uploadAsset } from '../../services/storageService'; // Import Upload Service
 import { getNodeContentHeight, getNodeWidth } from '../../utils/nodeUtils';
@@ -582,13 +582,7 @@ const FloatingToolbar: React.FC<FloatingToolbarProps> = ({ node, edges, nodes, u
           }
       } catch (e: any) {
           console.error(e);
-          // Only request Gemini API key if the error specifically mentions it or if it's a default state
-          // OpenAI errors should show the toast but not trigger the Gemini modal
-          if (e.message && (e.message.includes('API Key not found') || e.message.includes('Google')) && !e.message.includes('OpenAI')) {
-             requestApiKey();
-          } else {
-             addToast(e.message || "Generation failed", 'error');
-          }
+          addToast(e.message || "Generation failed", 'error');
       } finally {
           setIsGeneratingChar(false);
       }
@@ -706,10 +700,8 @@ const FloatingToolbar: React.FC<FloatingToolbarProps> = ({ node, edges, nodes, u
 
   // Dynamic Ratio Options based on Model
   const getAvailableRatios = () => {
-      if (node.type === 'image_gen' && node.data.settings?.model === ModelType.GEMINI_PRO_IMAGE) {
-          return ASPECT_RATIOS_CONST; // Full list for Pro
-      }
-      return BASIC_ASPECT_RATIOS; // Restricted list for others
+      // 所有模型统一使用完整比例列表（通过 AI Gateway 路由）
+      return ASPECT_RATIOS_CONST;
   };
 
   const renderVideoSettingsPopover = () => {
@@ -1400,7 +1392,7 @@ const FloatingToolbar: React.FC<FloatingToolbarProps> = ({ node, edges, nodes, u
                         </div>
                         <ModelSelector
                             models={getModelList()}
-                            value={node.data.settings?.model || 'gemini-3-flash-preview'}
+                            value={node.data.settings?.model || 'gpt-4o'}
                             onChange={(modelId) => updateNodeData({ settings: { ...node.data.settings, model: modelId }})}
                             isLoading={isLoadingModels}
                             className="w-44"

@@ -131,20 +131,19 @@ export const SYSTEM_CONNECTORS: Connector[] = [
     // --- LLM (Global Leaders) ---
     { 
         id: 'google', 
-        name: 'Google Gemini', 
-        description: '多模态推理 (Gemini/Veo)，1M+ 上下文窗口，支持原生代码执行。', 
+        name: 'Google AI', 
+        description: '多模态推理，支持文本、图像、视频、音频生成。通过 AI Gateway 统一路由。', 
         providerId: 'google', 
         category: 'llm', 
         capabilities: ['text', 'image', 'video', 'audio'],
         status: 'available', 
         type: 'system_api',
-        version: '1.5 Pro', 
+        version: 'AI Gateway', 
         color: 'bg-white',
         authType: 'apiKey',
-        docsUrl: 'https://aistudio.google.com/app/apikey',
-        paramLabel: 'Gemini API 密钥',
-        placeholder: 'AIzaSy...',
-        validationRegex: '^AIza[0-9A-Za-z\\-_]{35}$' 
+        docsUrl: 'https://ai-gateway.eyewind.com',
+        paramLabel: 'API 密钥',
+        placeholder: 'API Key...'
     },
     { 
         id: 'openai', 

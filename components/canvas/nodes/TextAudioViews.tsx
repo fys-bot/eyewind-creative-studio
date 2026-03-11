@@ -114,7 +114,7 @@ export const ScriptAgentView: React.FC<NodeViewProps> = ({ node, isExpanded, con
             Please provide a helpful, creative response. If generating a script or content, just output the content directly.`;
 
             const result = await generateTextViaGateway({ 
-                model: node.data.settings?.model || 'gemini-3-flash-preview', 
+                model: node.data.settings?.model || 'gpt-4o', 
                 prompt: prompt 
             });
 

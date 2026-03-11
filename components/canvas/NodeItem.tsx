@@ -336,7 +336,7 @@ const NodeItemComponent = forwardRef<HTMLDivElement, NodeItemProps>(({
 
     // 2. Model Name (Generic)
     if (settings.model && ['script_agent', 'audio_gen'].includes(node.type)) {
-         // Simplify model name for badge (e.g. "Gemini 1.5 Pro" -> "Gemini")
+         // Simplify model name for badge
          let label = settings.model;
          // You might want a lookup map here if model IDs are complex
          badges.push({ icon: Cpu, label });

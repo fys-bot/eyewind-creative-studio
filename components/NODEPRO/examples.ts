@@ -25,8 +25,8 @@ export const IconGeneratorConfig: ProNodeConfig = {
                 type: 'select',
                 defaultValue: 'flash',
                 options: [
-                    { label: 'Flash 极速版 (gemini-2.5-flash)', value: 'flash' },
-                    { label: 'Pro 专业版 (gemini-3-pro)', value: 'pro' }
+                    { label: 'Flash 极速版', value: 'flash' },
+                    { label: 'Pro 专业版', value: 'pro' }
                 ]
             },
             {

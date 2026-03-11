@@ -17,7 +17,6 @@ import FloatingToolbar from './components/canvas/FloatingToolbar';
 // Updated import to use the new UserDashboard
 import UserDashboard from './components/user/UserDashboard';
 // Updated imports for User UI components
-import ApiKeyModal from './components/user/ApiKeyModal';
 import ImageProcessor from './components/user/ImageProcessor';
 import ProjectLoadingScreen from './components/user/ProjectLoadingScreen';
 import ChatWidget from './components/ChatWidget'; 
@@ -27,7 +26,6 @@ import {
   fetchProjects, // New Async Fetch
   saveProject, 
   updateProjectThumbnail, // Import new function
-  getLocalApiKey,
   getAppSettings,
   saveAppSettings,
   createNewProject,
@@ -35,7 +33,6 @@ import {
   getCurrentUser
 } from './services/storageService';
 import { nodeRegistry } from './services/nodeEngine';
-import { requestApiKey } from './services/generationService';
 import { cancelAllPolls } from './services/aiGatewayService';
 import { Language, translations } from './utils/translations';
 import { exportProjectPackage } from './services/projectIo';
@@ -87,7 +84,6 @@ const AppContent: React.FC = () => {
   const [isLayerPanelOpen, setIsLayerPanelOpen] = useState(false);
   const [focusNodesState, setFocusNodesState] = useState<{ ids: string[], timestamp: number } | null>(null);
 
-  const [showApiKeyModal, setShowApiKeyModal] = useState(false);
   // const [showSettingsModal, setShowSettingsModal] = useState(false); // Deprecated in favor of ProfileModal
   
   // Share Modals State
@@ -226,12 +222,6 @@ const AppContent: React.FC = () => {
     initData();
     
     setSettings(getAppSettings());
-    
-    // Check API Key
-    if (!getLocalApiKey() && !process.env.API_KEY) {
-        // Delay slightly to not block initial render
-        setTimeout(() => setShowApiKeyModal(true), 1000);
-    }
 
     // Language Auto-detect
     const browserLang = navigator.language.toLowerCase();
@@ -1313,11 +1303,9 @@ const AppContent: React.FC = () => {
              }
           }
 
-          const apiKey = getLocalApiKey() || process.env.API_KEY;
           const context = {
               inputs: inputValues,
               settings: { ...node.data.settings, value: node.data.value },
-              globalApiKey: apiKey || undefined,
               inputLabels: inputLabels,
               references: references
           };
@@ -1342,10 +1330,7 @@ const AppContent: React.FC = () => {
           setNodes(prev => prev.map(n => n.id === nodeId ? { ...n, status: 'error', errorMessage: safeErrorMsg } : n));
           
           const errMsg = safeErrorMsg.toLowerCase();
-          // Only trigger global API key modal (Gemini) if error is not from OpenAI
-          if ((errMsg.includes('api key') || errMsg.includes('quota') || errMsg.includes('billing') || errMsg.includes('429')) && !errMsg.includes('openai') && !errMsg.includes('azure')) {
-             setShowApiKeyModal(true);
-          }
+          // 错误提示已通过节点状态显示，不再弹出 API Key 弹窗
       }
   };
 
@@ -1615,7 +1600,6 @@ const AppContent: React.FC = () => {
   return (
     <div className="w-full h-screen overflow-hidden flex flex-col bg-gray-50 dark:bg-black transition-colors duration-300 relative">
        {loading && <ProjectLoadingScreen progress={loading.progress} stage={loading.stage} message={loading.message} lang={lang} />}
-       <ApiKeyModal isOpen={showApiKeyModal} onClose={() => setShowApiKeyModal(false)} lang={lang} />
        <SubscriptionModal lang={lang} />
        <ProfileModal 
           settings={settings}

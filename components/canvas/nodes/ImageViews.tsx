@@ -181,11 +181,11 @@ export const ImageGenView: React.FC<NodeViewProps> = ({ node, contentHeight, zoo
     // Determine Model Label
     const modelId = node.data.settings?.model;
     const modelObj = MODELS.find(m => m.id === modelId);
-    let modelLabel = 'Gemini Flash';
+    let modelLabel = 'Image Model';
     if (modelObj) {
         modelLabel = modelObj.label;
     } else if (modelId) {
-        // 从 model id 提取可读名称，如 "google/gemini-3-pro-image-preview" → "gemini 3 pro image"
+        // 从 model id 提取可读名称，如 "openai/gpt-image-1" → "Gpt Image 1"
         const parts = modelId.split('/').pop() || modelId;
         modelLabel = parts
             .replace(/-preview$/, '')

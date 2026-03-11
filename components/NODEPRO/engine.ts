@@ -36,7 +36,7 @@ export class NodeProEngine {
 
             console.log("NodePro Final Prompt:", finalPrompt);
 
-            // 3. 直接调用绘图模型 (Gemini Pro Vision / Imagen 3)
+            // 3. 调用绘图模型（通过 AI Gateway）
             // IconGenerator 的核心是产出图片，而非文本
             
             const modelTier = inputValues['model_tier'] || 'flash';

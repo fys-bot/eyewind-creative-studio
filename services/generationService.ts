@@ -1,7 +1,6 @@
 
 import { VideoConfig, AudioConfig, ImageConfig } from "../types";
 import { PROMPTS } from "../utils/promptRegistry";
-import * as GoogleProvider from "./geminiService";
 import * as OpenAIProvider from "./openaiService";
 import * as VolcengineProvider from "./volcengineService";
 import * as AIGatewayProvider from "./aiGatewayService";
@@ -25,15 +24,12 @@ const resolveModel = (model: string | undefined, type: 'video' | 'image' | 'text
     // Default fallbacks - 使用 AI Gateway 模型
     if (type === 'video') return 'veo-3.1-i2v';
     if (type === 'image') return 'flux-1.1-pro';
-    if (type === 'text') return 'gemini-3-flash-preview';
+    if (type === 'text') return 'gpt-4o';
     if (type === 'audio') return 'gpt-4o-audio-preview';
     return '';
 };
 
-// Explicitly re-export or wrap requestApiKey for usage in App.tsx
-export const requestApiKey = async (): Promise<boolean> => {
-    return GoogleProvider.requestApiKey();
-};
+// 统一使用 AI Gateway，不再需要单独的 API Key
 
 // Simulation Helper
 const simulateGeneration = async (model: string, type: 'image' | 'video' | 'audio', prompt: string): Promise<string> => {
@@ -171,7 +167,7 @@ export const generateImage = async (config: ImageConfig): Promise<string> => {
         });
     }
 
-    // 默认使用 AI Gateway - 所有图片模型（包括 dall-e, flux, stable-diffusion, gemini 等）
+    // 默认使用 AI Gateway - 所有图片模型
     console.log('[Generation Service] Using AI Gateway for image model:', actualModel);
     return AIGatewayProvider.generateImageViaGateway({
         model: actualModel,
@@ -193,7 +189,7 @@ export const generateCharacterReference = async (description: string): Promise<s
 };
 
 export const generateScript = async (concept: string, model?: string, role?: string): Promise<string[]> => {
-    const actualModel = resolveModel(model || 'gemini-3-flash-preview', 'text');
+    const actualModel = resolveModel(model || 'gpt-4o', 'text');
     
     // 业务逻辑：应用 Agent Prompt (带角色)
     const finalPrompt = PROMPTS.SCRIPT_AGENT(concept, role);
@@ -216,7 +212,7 @@ export const generateScript = async (concept: string, model?: string, role?: str
            apiKey: volcConfig.apiKey
        });
     } else {
-        // 默认使用 AI Gateway - 所有聊天模型（包括 gemini, gpt, claude 等）
+        // 默认使用 AI Gateway - 所有聊天模型
         console.log('[Generation Service] Using AI Gateway for text model:', actualModel);
         text = await AIGatewayProvider.generateTextViaGateway({
             model: actualModel,

@@ -92,7 +92,7 @@ export class AiRefineNode extends BaseNode {
      }
 
      const prompt = `Refine this prompt for better AI generation results (Image/Video): "${input}". Return only the refined prompt text, no explanations.`;
-     const result = await generateTextViaGateway({ model: ctx.settings?.model || 'gemini-3-flash-preview', prompt });
+     const result = await generateTextViaGateway({ model: ctx.settings?.model || 'gpt-4o', prompt });
      
      return { outputResult: result };
   }
@@ -117,7 +117,7 @@ export class PromptTranslatorNode extends BaseNode {
      // Detect if input is Chinese, if so translate to English (best for AI), else to Chinese?
      // Or just "Translate to English" as default since most AI models prefer English.
      const prompt = `Translate the following text to English for AI Image Prompt usage. If it is already English, just refine it. Text: "${input}". Return only the translated text.`;
-     const result = await generateTextViaGateway({ model: ctx.settings?.model || 'gemini-3-flash-preview', prompt });
+     const result = await generateTextViaGateway({ model: ctx.settings?.model || 'gpt-4o', prompt });
      
      return { outputResult: result };
   }

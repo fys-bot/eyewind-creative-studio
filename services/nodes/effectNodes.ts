@@ -1,5 +1,5 @@
 import { BaseNode, ResourceType, ResourceSubtype, ExecutionContext, PortDefinition } from "../nodeBase";
-import { WorkflowNodeType, ModelType, AspectRatio, Resolution } from "../../types";
+import { WorkflowNodeType, AspectRatio, Resolution } from "../../types";
 import { generateImage, generateVideo } from "../generationService";
 
 // --- 智能抠图节点 ---
@@ -21,7 +21,7 @@ export class ImageMattingNode extends BaseNode {
 
     // Simulation for MVP:
     // In a real app, use @imgly/background-removal (Client) or rembg (Server).
-    // Here we use Gemini to "simulate" a perfect cutout generation 
+    // Here we use AI to "simulate" a perfect cutout generation 
     // or just return the image if it's already processed, but we'll re-generate 
     // it with a prompt to force a white/clean background which is easier to mat.
     
@@ -66,7 +66,7 @@ export class ColorGradeNode extends BaseNode {
     // For AI-based grading (Re-lighting):
     /*
     return generateImage({
-        model: ModelType.GEMINI_FLASH_IMAGE,
+        model: 'flux-1.1-pro',
         prompt: " cinematic color grading, teal and orange, moody lighting, preserve original content structure",
         referenceImages: [input]
     });
@@ -96,7 +96,7 @@ export class ImageUpscaleNode extends BaseNode {
     // Simulation:
     // "Upscale this image"
     return generateImage({
-        model: ModelType.GEMINI_PRO_IMAGE,
+        model: 'flux-1.1-pro',
         prompt: "High resolution, 4k, highly detailed, sharp focus. Preserve original content structure.",
         aspectRatio: AspectRatio.R_1_1,
         referenceImages: [image]

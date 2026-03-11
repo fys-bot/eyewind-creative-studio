@@ -63,7 +63,7 @@ export class ImageGenNode extends BaseNode {
       model: ctx.settings?.model || 'flux-1.1-pro',
       prompt: finalPrompt,
       size: ctx.settings?.size || '1024x1024',
-      aspectRatio: ctx.settings?.aspectRatio, // 保留用于兼容旧的Gemini模型
+      aspectRatio: ctx.settings?.aspectRatio, // 保留用于兼容部分模型
       referenceImages: refImages,
       resolution: ctx.settings?.resolution
     });

@@ -42,7 +42,7 @@ export const PROFESSIONAL_TEMPLATES: WorkflowTemplate[] = [
                 data: {
                     label: 'AI 编剧 (Director)',
                     settings: {
-                        model: 'gemini-1.5-pro',
+                        model: 'gpt-4o',
                         role: 'director'
                     },
                     value: '请根据主题生成一段详细的电影分镜脚本，包含3个关键场景的画面描述、运镜方式和氛围描写。'
@@ -306,7 +306,7 @@ export const PROFESSIONAL_TEMPLATES: WorkflowTemplate[] = [
                 data: {
                     label: '语音合成 (TTS)',
                     settings: { 
-                        model: ModelType.GEMINI_TTS,
+                        model: ModelType.TTS_1,
                         // voice: 'Puck' 
                     },
                     value: 'Generate speech from script'
@@ -549,7 +549,7 @@ export const PROFESSIONAL_TEMPLATES: WorkflowTemplate[] = [
                 data: {
                     label: '表情包生成',
                     settings: {
-                        model: ModelType.GEMINI_PRO_IMAGE,
+                        model: ModelType.FLUX_PRO,
                         aspectRatio: AspectRatio.R_1_1
                     },
                     value: 'Funny meme sticker, cute cat saying "No work today", simple line art, white background --ar 1:1'

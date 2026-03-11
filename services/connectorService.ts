@@ -1,8 +1,6 @@
 
 import { Connector, ConnectorConfig } from '../types';
 import { SYSTEM_CONNECTORS } from './connectors/registry';
-import { GoogleGenAI } from "@google/genai";
-import { saveLocalApiKey } from './storageService';
 import { verifyOpenAIKey } from './openaiService';
 
 const USER_CONNECTORS_KEY = 'enexus_user_connectors';
@@ -77,21 +75,6 @@ export const fetchConnectors = async (): Promise<Connector[]> => {
  * 3. Saves to secure storage (LocalStorage for demo).
  */
 export const verifyAndConnectConnector = async (id: string, config: ConnectorConfig): Promise<Connector> => {
-    // Special handling for Google Gemini to perform real verification
-    if (id === 'google' && config.apiKey) {
-        try {
-            const ai = new GoogleGenAI({ apiKey: config.apiKey });
-            // Try to list models as a lightweight verification
-            await ai.models.list();
-            
-            // If successful, save globally for the app to use
-            saveLocalApiKey(config.apiKey);
-        } catch (e: any) {
-            console.error("Gemini Verification Failed", e);
-            throw new Error(`Verification failed: ${e.message || "Invalid API Key"}`);
-        }
-    }
-
     // Special handling for OpenAI to perform real verification
     if (id === 'openai' && config.apiKey) {
         try {
@@ -148,11 +131,6 @@ export const disconnectConnector = async (id: string): Promise<Connector | null>
         const configs = getStoredConfigs();
         delete configs[id];
         localStorage.setItem(CONNECTED_PROVIDERS_KEY, JSON.stringify(configs));
-        
-        // If disconnecting Google, also clear the global key
-        if (id === 'google') {
-            saveLocalApiKey('');
-        }
         
         return { ...systemConnector, status: 'available', userConfig: undefined };
     }

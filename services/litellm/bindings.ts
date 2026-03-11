@@ -18,17 +18,17 @@ export const BINDINGS: CapabilityBinding[] = [
         priority: 1
     },
     {
-        id: 'b_gemini_pro',
+        id: 'b_gateway_text',
         capability_id: 'text_generation',
-        internal_model_id: 'gemini-1.5-pro',
-        litellm_model: 'gemini/gemini-1.5-pro',
+        internal_model_id: 'gpt-4o',
+        litellm_model: 'openai/gpt-4o',
         priority: 2
     },
     {
-        id: 'b_gemini_flash',
+        id: 'b_gateway_text_fast',
         capability_id: 'text_generation',
-        internal_model_id: 'gemini-3-flash-preview',
-        litellm_model: 'gemini/gemini-1.5-flash',
+        internal_model_id: 'gpt-4o-mini',
+        litellm_model: 'openai/gpt-4o-mini',
         priority: 3
     },
 
@@ -48,10 +48,10 @@ export const BINDINGS: CapabilityBinding[] = [
         priority: 1
     },
     {
-        id: 'b_gemini_image',
+        id: 'b_gateway_image',
         capability_id: 'image_generation',
-        internal_model_id: 'gemini-2.5-flash-image',
-        litellm_model: 'gemini/gemini-pro-vision', // Example mapping
+        internal_model_id: 'flux-1.1-pro',
+        litellm_model: 'openai/flux-1.1-pro', // AI Gateway 路由
         priority: 2
     },
 
