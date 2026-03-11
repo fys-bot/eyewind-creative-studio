@@ -1126,9 +1126,10 @@ const FloatingToolbar: React.FC<FloatingToolbarProps> = ({ node, edges, nodes, u
   return (
     <div 
         ref={toolbarRef} 
-        className={`flex flex-col items-center ${isConnecting ? 'pointer-events-none' : 'pointer-events-auto'}`}
+        className={`floating-toolbar flex flex-col items-center ${isConnecting ? 'pointer-events-none' : 'pointer-events-auto'}`}
         style={{...containerStyle, pointerEvents: isConnecting ? 'none' : 'auto'}}
         onMouseDown={(e) => e.stopPropagation()}
+        onPointerDown={(e) => e.stopPropagation()}
         onClick={(e) => e.stopPropagation()}
         onDoubleClick={(e) => e.stopPropagation()}
         onTouchStart={(e) => e.stopPropagation()}
@@ -1363,14 +1364,14 @@ const FloatingToolbar: React.FC<FloatingToolbarProps> = ({ node, edges, nodes, u
                             <div className="flex flex-col"><span className="text-xs font-bold text-blue-700 dark:text-blue-300">Using {promptTextSource.data.label}</span><span className="text-[10px] text-blue-400 dark:text-blue-500 mt-0.5">Prompt provided by upstream node</span></div>
                         </div>
                     ) : (
-                        <div className="relative w-full h-24">
+                        <div className="relative w-full">
                             {activeField === 'value' && renderMentionMenu()}
                             <textarea 
                                 value={node.data.value || ''} 
                                 onChange={(e) => handlePromptChange(e, 'value')} 
                                 onKeyDown={(e) => handlePromptKeyDown(e, 'value')}
                                 placeholder={lang === 'en' ? "What are we creating today? (@ to reference)" : "今天想创作什么？(使用 @ 引用)"} 
-                                className="w-full h-full bg-gray-50 dark:bg-gray-800/50 rounded-xl p-3 resize-none text-sm outline-none border border-transparent focus:border-blue-200 dark:focus:border-blue-800 placeholder:text-gray-400 dark:placeholder:text-gray-600 text-gray-700 dark:text-gray-200 font-medium custom-scrollbar transition-all" 
+                                className="w-full min-h-[96px] max-h-[200px] bg-gray-50 dark:bg-gray-800/50 rounded-xl p-3 resize-y text-sm outline-none border border-transparent focus:border-blue-200 dark:focus:border-blue-800 placeholder:text-gray-400 dark:placeholder:text-gray-600 text-gray-700 dark:text-gray-200 font-medium custom-scrollbar transition-colors"
                             />
                         </div>
                      )}

@@ -56,7 +56,10 @@ const ModelSelector: React.FC<ModelSelectorProps> = ({ models, value, onChange, 
     useEffect(() => {
         if (!isOpen) return;
         const handler = (e: MouseEvent) => {
-            if (containerRef.current && !containerRef.current.contains(e.target as Node)) { setIsOpen(false); setSearch(''); }
+            if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+                setIsOpen(false);
+                setSearch('');
+            }
         };
         document.addEventListener('mousedown', handler);
         return () => document.removeEventListener('mousedown', handler);
@@ -138,14 +141,9 @@ const ModelSelector: React.FC<ModelSelectorProps> = ({ models, value, onChange, 
                 <ChevronDown size={12} className={`text-gray-400 flex-shrink-0 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
             </button>
 
-            {isOpen && (<>
-                <div className="fixed inset-0 z-[9998]" 
-                    onClick={(e) => { e.stopPropagation(); setIsOpen(false); setSearch(''); }} 
-                    onMouseDown={(e) => e.stopPropagation()} 
-                    onPointerDown={(e) => e.stopPropagation()} 
-                />
+            {isOpen && (
                 <div className="absolute left-0 right-0 bottom-full mb-1 z-[9999] bg-white dark:bg-gray-800 rounded-xl shadow-2xl border border-gray-200 dark:border-gray-700 flex flex-col animate-in fade-in zoom-in-95 origin-bottom"
-                    style={{ height: '340px', minWidth: '240px' }} onMouseDown={(e) => e.stopPropagation()} onTouchStart={(e) => e.stopPropagation()}>
+                    style={{ height: '340px', minWidth: '240px' }} onMouseDown={(e) => e.stopPropagation()} onPointerDown={(e) => e.stopPropagation()} onTouchStart={(e) => e.stopPropagation()}>
                     {/* Search */}
                     <div className="shrink-0 bg-white dark:bg-gray-800 border-b border-gray-100 dark:border-gray-700 p-2 rounded-t-xl">
                         <div className="relative">
@@ -183,7 +181,7 @@ const ModelSelector: React.FC<ModelSelectorProps> = ({ models, value, onChange, 
                         ))}
                     </div>
                 </div>
-            </>)}
+            )}
         </div>
     );
 };
