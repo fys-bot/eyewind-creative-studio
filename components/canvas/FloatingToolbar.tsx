@@ -1358,6 +1358,14 @@ const FloatingToolbar: React.FC<FloatingToolbarProps> = ({ node, edges, nodes, u
             {/* Video Gen Block */}
             {node.type === 'video_gen' && (
                  <div className="flex flex-col gap-3">
+                    {/* 模型描述信息条 */}
+                    {getCurrentModelInfo()?.description && (
+                        <div className="flex items-start gap-2 px-1 py-1.5 rounded-lg bg-blue-50/50 dark:bg-blue-900/10 border border-blue-100/50 dark:border-blue-800/30">
+                            <Info size={12} className="text-blue-400 flex-shrink-0 mt-0.5" />
+                            <p className="text-[10px] text-gray-500 dark:text-gray-400 leading-relaxed line-clamp-2">{getCurrentModelInfo()!.description}</p>
+                        </div>
+                    )}
+                    
                     {promptTextSource ? (
                         <div className="w-full h-24 bg-blue-50/50 dark:bg-blue-900/10 rounded-xl border border-blue-100 dark:border-blue-800 flex flex-col items-center justify-center text-center p-4 gap-2 select-none group/linked">
                             <div className="w-10 h-10 rounded-full bg-blue-100 dark:bg-blue-800 flex items-center justify-center text-blue-600 dark:text-blue-300 shadow-sm group-hover/linked:scale-110 transition-transform"><Link2 size={20} /></div>
@@ -1435,6 +1443,14 @@ const FloatingToolbar: React.FC<FloatingToolbarProps> = ({ node, edges, nodes, u
                         )}
                     </div>
 
+                    {/* 模型描述信息条 */}
+                    {getCurrentModelInfo()?.description && (
+                        <div className="flex items-start gap-2 px-1 py-1.5 rounded-lg bg-blue-50/50 dark:bg-blue-900/10 border border-blue-100/50 dark:border-blue-800/30">
+                            <Info size={12} className="text-blue-400 flex-shrink-0 mt-0.5" />
+                            <p className="text-[10px] text-gray-500 dark:text-gray-400 leading-relaxed line-clamp-2">{getCurrentModelInfo()!.description}</p>
+                        </div>
+                    )}
+
                     {/* Connection Indicator or Input */}
                     {renderConnections()}
                    {!promptSource && (
@@ -1487,7 +1503,15 @@ const FloatingToolbar: React.FC<FloatingToolbarProps> = ({ node, edges, nodes, u
                  </div>
             )}
              {node.type === 'audio_gen' && (
-                 <div className="flex flex-col gap-1">
+                 <div className="flex flex-col gap-3">
+                     {/* 模型描述信息条 */}
+                     {getCurrentModelInfo()?.description && (
+                         <div className="flex items-start gap-2 px-1 py-1.5 rounded-lg bg-blue-50/50 dark:bg-blue-900/10 border border-blue-100/50 dark:border-blue-800/30">
+                             <Info size={12} className="text-blue-400 flex-shrink-0 mt-0.5" />
+                             <p className="text-[10px] text-gray-500 dark:text-gray-400 leading-relaxed line-clamp-2">{getCurrentModelInfo()!.description}</p>
+                         </div>
+                     )}
+                     
                      {renderConnections()}
                    {!promptSource && (
                         <textarea value={node.data.value} onChange={(e) => updateNodeData({ value: e.target.value })} onKeyDown={handleKeyDown} placeholder={t.placeholders.audio_input} className="w-full h-24 bg-gray-50 dark:bg-gray-800/50 rounded-xl p-3 resize-none text-sm outline-none placeholder:text-gray-400 dark:placeholder:text-gray-600 text-gray-700 dark:text-gray-200 border border-transparent focus:border-blue-500/20 transition-all" />
