@@ -81,9 +81,11 @@ export const ScriptAgentView: React.FC<NodeViewProps> = ({ node, isExpanded, con
         }
     }, [node.status]);
 
-    // Scroll to bottom on new message
+    // Scroll to bottom on new message - 使用 scrollTop 避免页面滚动
     useEffect(() => {
-        messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+        if (chatAreaRef.current) {
+            chatAreaRef.current.scrollTop = chatAreaRef.current.scrollHeight;
+        }
     }, [messages]);
 
     // 添加原生滚轮事件监听器，优先级最高
@@ -204,8 +206,8 @@ export const ScriptAgentView: React.FC<NodeViewProps> = ({ node, isExpanded, con
                     const handleMouseMove = (moveEvent: MouseEvent) => {
                         const deltaX = moveEvent.clientX - startX;
                         const deltaY = moveEvent.clientY - startY;
-                        const newHeight = Math.max(200, Math.min(800, startHeight + deltaY));
-                        const newWidth = Math.max(280, Math.min(600, startWidth + deltaX));
+                        const newHeight = Math.max(200, startHeight + deltaY);
+                        const newWidth = Math.max(280, startWidth + deltaX);
                         onUpdateData(node.id, { 
                             settings: { 
                                 ...node.data.settings, 

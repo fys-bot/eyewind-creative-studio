@@ -149,10 +149,11 @@ const NodeItemComponent = forwardRef<HTMLDivElement, NodeItemProps>(({
     WebkitFontSmoothing: 'subpixel-antialiased',
     // Add grayscale filter if being replaced (checked via props or data)
     filter: node.data?.isReplacing ? 'grayscale(100%)' : 'none',
-    transition: 'filter 0.3s ease',
     // FIX: Add transform translate3d(0,0,0) to force GPU layer and prevent subpixel rendering issues
     // OPTIMIZATION: In performance mode (zoomed in), disable individual layer promotion to allow global bitmap scaling
     transform: (zoom > (settings?.performanceModeThreshold ?? 1.0)) ? 'none' : 'translate3d(0,0,0)',
+    // 优化性能：只在需要时使用 will-change
+    willChange: isExpanded || selected ? 'transform' : 'auto',
   };
   
   const expandedX = isExpanded 
@@ -412,8 +413,8 @@ const NodeItemComponent = forwardRef<HTMLDivElement, NodeItemProps>(({
       }}
       exit={getExitAnimation()}
       transition={{ 
-          duration: 0.4, 
-          ease: [0.175, 0.885, 0.32, 1.275]
+          duration: 0.3,
+          ease: "easeOut"
       }}
       // Use onAnimationStart to force transform origin for correct scaling
       onAnimationStart={() => {

@@ -595,10 +595,10 @@ export const useCanvasInteraction = ({
         // 没有可滚动元素，canvas 处理
         e.preventDefault();
         
-        if (animationFrameRef.current) cancelAnimationFrame(animationFrameRef.current);
         const currentViewport = viewportRef.current;
 
         if (e.ctrlKey || e.metaKey) {
+            // 缩放逻辑
             const rect = container.getBoundingClientRect();
             const mouseX = e.clientX - rect.left;
             const mouseY = e.clientY - rect.top;
@@ -619,6 +619,7 @@ export const useCanvasInteraction = ({
 
             onViewportChange({ x: newX, y: newY, zoom: newZoom });
         } else {
+            // 平移逻辑 - 直接更新，不使用 RAF
             onViewportChange({ 
                 ...currentViewport, 
                 x: currentViewport.x - e.deltaX, 
@@ -628,7 +629,9 @@ export const useCanvasInteraction = ({
     };
 
     container.addEventListener('wheel', onWheel, { passive: false });
-    return () => container.removeEventListener('wheel', onWheel);
+    return () => {
+        container.removeEventListener('wheel', onWheel);
+    };
   }, [onViewportChange, settings, containerRef]);
 
   // Handle MouseDown (for React event, mainly context menu and pan)
