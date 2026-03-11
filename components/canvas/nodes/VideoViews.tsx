@@ -30,7 +30,15 @@ export const VideoGenView: React.FC<NodeViewProps> = ({ node, contentHeight }) =
         <div className="w-full bg-transparent flex flex-col relative group" style={{ height: contentHeight, borderRadius: '0 0 0 0' }}>
             <div className="relative w-full flex-1 overflow-hidden flex items-center justify-center bg-gray-50 dark:bg-gray-800">
                  {node.data.outputResult ? (
+                    <>
                     <SimpleVideoPlayer src={node.data.outputResult} className="w-full h-full" />
+                    {node.status === 'running' && (
+                        <div className="absolute inset-0 bg-white/60 dark:bg-black/60 backdrop-blur-sm flex flex-col items-center justify-center z-10">
+                            <div className="w-10 h-10 rounded-full border-[3px] border-gray-200 dark:border-gray-700 border-t-blue-500 animate-spin"></div>
+                            <span className="text-xs font-semibold text-gray-500 dark:text-gray-400 mt-3">生成中...</span>
+                        </div>
+                    )}
+                    </>
                  ) : node.status === 'running' ? (
                      <div className="flex flex-col items-center gap-3 text-emerald-500">
                          <div className="relative">
