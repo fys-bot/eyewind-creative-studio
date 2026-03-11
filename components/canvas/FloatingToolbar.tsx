@@ -1,5 +1,6 @@
 
 import React, { useRef, useState, useLayoutEffect, useEffect } from 'react';
+import ReactDOM from 'react-dom';
 import { AlertCircle, Upload, Sparkles, Loader2, Zap, ChevronDown, ChevronUp, Mic, Megaphone, RectangleHorizontal, RectangleVertical, MonitorPlay, Tablet, Square, Gamepad2, Clapperboard, Feather, Briefcase, Map as MapIcon, Headphones, Palette, Globe, Activity, Users, Bug, X, Music, Video, RefreshCcw, Link2, Plus, UserCog, Layers, Volume2, Network, FileText, Info } from 'lucide-react';
 import { WorkflowNode, WorkflowEdge, AspectRatio, ModelType, Resolution } from '../../types';
 import { MODELS as MODELS_CONST, ASPECT_RATIOS as ASPECT_RATIOS_CONST, BASIC_ASPECT_RATIOS, AUDIO_VOICES as AUDIO_VOICES_CONST, AUDIO_CATEGORIES, RESOLUTIONS, IMAGE_RESOLUTIONS, IMAGE_SIZES, DURATIONS, AGENT_ROLES } from '../../constants';
@@ -36,6 +37,7 @@ const FloatingToolbar: React.FC<FloatingToolbarProps> = ({ node, edges, nodes, u
   const { addToast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const toolbarRef = useRef<HTMLDivElement>(null);
+  const settingsPopoverRef = useRef<HTMLDivElement>(null);
   
   
 
@@ -317,9 +319,34 @@ const FloatingToolbar: React.FC<FloatingToolbarProps> = ({ node, edges, nodes, u
 
 
 
-  useLayoutEffect(() => {
-      // handleClickOutside 已移除，参数弹框通过关闭按钮(X)关闭
-  }, []);
+  // 用原生事件阻止参数弹框内的事件穿透到 React Flow canvas
+  // 使用 Portal 方式渲染弹框，完全脱离 React Flow DOM 树
+  const settingsBtnRef = useRef<HTMLButtonElement>(null);
+  const [popoverPos, setPopoverPos] = useState<{ top: number; left: number } | null>(null);
+  
+  useEffect(() => {
+      if (!showSettingsPopover || !settingsBtnRef.current) {
+          setPopoverPos(null);
+          return;
+      }
+      const updatePos = () => {
+          const btn = settingsBtnRef.current;
+          if (!btn) return;
+          const rect = btn.getBoundingClientRect();
+          // 弹框宽度 256px (w-64)，定位在按钮上方，右对齐
+          setPopoverPos({
+              top: rect.top - 12, // mb-3 = 12px gap
+              left: rect.right - 256, // 右对齐，弹框宽度 256px
+          });
+      };
+      updatePos();
+      window.addEventListener('scroll', updatePos, true);
+      window.addEventListener('resize', updatePos);
+      return () => {
+          window.removeEventListener('scroll', updatePos, true);
+          window.removeEventListener('resize', updatePos);
+      };
+  }, [showSettingsPopover]);
 
   const getUpstreamNode = (handleId: string) => {
       if (!edges || !nodes) return null;
@@ -707,14 +734,16 @@ const FloatingToolbar: React.FC<FloatingToolbarProps> = ({ node, edges, nodes, u
       const resolutionOptions = getVideoResolutionOptions();
       const durationParam = getSchemaParamOptions('duration');
       
-      return (
-      <div className="absolute bottom-full right-0 mb-3 bg-white dark:bg-gray-800 rounded-xl shadow-2xl border border-gray-100 dark:border-gray-700 p-3 w-64 z-50 animate-in fade-in zoom-in-95 origin-bottom-right"
-          onMouseDown={(e) => e.stopPropagation()} onPointerDown={(e) => e.stopPropagation()} onClick={(e) => e.stopPropagation()} onTouchStart={(e) => e.stopPropagation()}>
-          <div className="absolute -bottom-1.5 right-11 w-3 h-3 bg-white dark:bg-gray-800 border-b border-r border-gray-100 dark:border-gray-700 transform rotate-45"></div>
+      if (!popoverPos) return null;
+      
+      return ReactDOM.createPortal(
+      <div className="fixed inset-0 z-[10000]" onClick={() => setShowSettingsPopover(false)}>
+      <div ref={settingsPopoverRef} 
+          className="fixed bg-white dark:bg-gray-800 rounded-xl shadow-2xl border border-gray-100 dark:border-gray-700 p-3 w-64 animate-in fade-in zoom-in-95 origin-bottom-right"
+          style={{ top: popoverPos.top, left: popoverPos.left, transform: 'translateY(-100%)' }}
+          onClick={(e) => e.stopPropagation()}>
           <button 
               onClick={(e) => { e.stopPropagation(); e.preventDefault(); setShowSettingsPopover(false); }} 
-              onMouseDown={(e) => { e.stopPropagation(); e.preventDefault(); }}
-              onPointerDown={(e) => { e.stopPropagation(); e.preventDefault(); }}
               className="absolute top-2 right-2 p-1 rounded-md text-gray-400 hover:text-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors z-30">
               <X size={14} />
           </button>
@@ -799,9 +828,7 @@ const FloatingToolbar: React.FC<FloatingToolbarProps> = ({ node, edges, nodes, u
           {(node.data.settings?.model?.includes('seedance') || node.data.settings?.model?.includes('doubao')) && (
               <div className="relative z-10 mt-3 pt-3 border-t border-gray-100 dark:border-gray-700">
                   <div className="flex items-center justify-between cursor-pointer group" 
-                      onClick={(e) => { e.stopPropagation(); updateNodeData({ settings: { ...node.data.settings, withAudio: !node.data.settings?.withAudio }}); }}
-                      onMouseDown={(e) => e.stopPropagation()} 
-                      onPointerDown={(e) => e.stopPropagation()}>
+                      onClick={(e) => { e.stopPropagation(); updateNodeData({ settings: { ...node.data.settings, withAudio: !node.data.settings?.withAudio }}); }}>
                       <div className="flex items-center gap-2">
                           <div className={`p-1.5 rounded-md ${node.data.settings?.withAudio ? "bg-blue-100 dark:bg-blue-900/50 text-blue-600" : "bg-gray-100 dark:bg-gray-700 text-gray-400"}`}>
                              <Music size={14} />
@@ -815,6 +842,8 @@ const FloatingToolbar: React.FC<FloatingToolbarProps> = ({ node, edges, nodes, u
               </div>
           )}
       </div>
+      </div>,
+      document.body
   );
   };
 
@@ -838,8 +867,20 @@ const FloatingToolbar: React.FC<FloatingToolbarProps> = ({ node, edges, nodes, u
               icon={<Video size={12}/>}
               className="flex-1 min-w-0"
           />
+          {getCurrentModelInfo()?.docsUrl && (
+              <button
+                  type="button"
+                  className="p-1 rounded-md text-gray-400 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/30 transition-all flex-shrink-0"
+                  title={getCurrentModelInfo()?.description || 'Model Documentation'}
+                  onClick={(e) => { e.stopPropagation(); e.preventDefault(); window.open(getCurrentModelInfo()!.docsUrl, '_blank', 'noopener,noreferrer'); }}
+                  onMouseDown={(e) => { e.stopPropagation(); e.preventDefault(); }}
+                  onPointerDown={(e) => { e.stopPropagation(); e.preventDefault(); }}
+              >
+                  <FileText size={12} />
+              </button>
+          )}
           <div className="flex-shrink-0 w-px h-4 bg-gray-200 dark:bg-gray-600"></div>
-          <button onClick={() => setShowSettingsPopover(!showSettingsPopover)} className={`flex items-center gap-1 px-2 py-1.5 rounded-lg transition-all border text-[11px] font-medium whitespace-nowrap flex-shrink-0 ${showSettingsPopover ? 'bg-white dark:bg-gray-700 border-gray-200 dark:border-gray-600 text-blue-600 dark:text-blue-400 shadow-sm' : 'hover:bg-white dark:hover:bg-gray-700 border-transparent hover:border-gray-200 dark:hover:border-gray-600 text-gray-600 dark:text-gray-300'}`}>
+          <button ref={settingsBtnRef} onClick={() => setShowSettingsPopover(!showSettingsPopover)} className={`flex items-center gap-1 px-2 py-1.5 rounded-lg transition-all border text-[11px] font-medium whitespace-nowrap flex-shrink-0 ${showSettingsPopover ? 'bg-white dark:bg-gray-700 border-gray-200 dark:border-gray-600 text-blue-600 dark:text-blue-400 shadow-sm' : 'hover:bg-white dark:hover:bg-gray-700 border-transparent hover:border-gray-200 dark:hover:border-gray-600 text-gray-600 dark:text-gray-300'}`}>
               <span>{node.data.settings?.aspectRatio || getSchemaParamOptions('aspect_ratio')?.default || '16:9'}</span><span className="text-gray-300 dark:text-gray-600">·</span><span>{node.data.settings?.duration || getSchemaParamOptions('duration')?.default || 4}s</span><span className="text-gray-300 dark:text-gray-600">·</span><span>{node.data.settings?.resolution || getSchemaParamOptions('resolution')?.default || '720p'}</span>{isLoadingSchema && <Loader2 size={10} className="animate-spin text-blue-400 ml-0.5"/>}<ChevronDown size={10} className={`text-gray-400 transition-transform ${showSettingsPopover ? 'rotate-180' : ''}`}/>
           </button>
           {node.status === 'running' ? (
@@ -1379,6 +1420,18 @@ const FloatingToolbar: React.FC<FloatingToolbarProps> = ({ node, edges, nodes, u
                             isLoading={isLoadingModels && dynamicModels.length === 0}
                             className="w-44"
                         />
+                        {getCurrentModelInfo()?.docsUrl && (
+                            <button
+                                type="button"
+                                className="p-1 rounded-md text-gray-400 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/30 transition-all flex-shrink-0"
+                                title={getCurrentModelInfo()?.description || 'Model Documentation'}
+                                onClick={(e) => { e.stopPropagation(); e.preventDefault(); window.open(getCurrentModelInfo()!.docsUrl, '_blank', 'noopener,noreferrer'); }}
+                                onMouseDown={(e) => { e.stopPropagation(); e.preventDefault(); }}
+                                onPointerDown={(e) => { e.stopPropagation(); e.preventDefault(); }}
+                            >
+                                <FileText size={12} />
+                            </button>
+                        )}
                     </div>
 
                     {/* Connection Indicator or Input */}
@@ -1689,6 +1742,18 @@ const FloatingToolbar: React.FC<FloatingToolbarProps> = ({ node, edges, nodes, u
                          icon={<Headphones size={12}/>}
                          className="w-36"
                      />
+                     {getCurrentModelInfo()?.docsUrl && (
+                         <button
+                             type="button"
+                             className="p-1 rounded-md text-gray-400 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/30 transition-all flex-shrink-0"
+                             title={getCurrentModelInfo()?.description || 'Model Documentation'}
+                             onClick={(e) => { e.stopPropagation(); e.preventDefault(); window.open(getCurrentModelInfo()!.docsUrl, '_blank', 'noopener,noreferrer'); }}
+                             onMouseDown={(e) => { e.stopPropagation(); e.preventDefault(); }}
+                             onPointerDown={(e) => { e.stopPropagation(); e.preventDefault(); }}
+                         >
+                             <FileText size={12} />
+                         </button>
+                     )}
                      <div className="relative group w-24">
                          <div className="absolute left-2 top-1/2 -translate-y-1/2 pointer-events-none text-gray-400">
                              <Volume2 size={12}/>
