@@ -570,9 +570,32 @@ export const useCanvasInteraction = ({
     if (!container) return;
 
     const onWheel = (e: WheelEvent) => {
+        // 检查是否在可滚动区域内 - 优先级最高
+        const target = e.target as Element;
+        
+        // 查找最近的可滚动父元素
+        let scrollableParent: HTMLElement | null = null;
+        let current = target as HTMLElement;
+        
+        while (current && current !== container) {
+            const overflowY = window.getComputedStyle(current).overflowY;
+            if ((overflowY === 'auto' || overflowY === 'scroll') && current.scrollHeight > current.clientHeight) {
+                scrollableParent = current;
+                break;
+            }
+            current = current.parentElement as HTMLElement;
+        }
+        
+        // 如果找到可滚动父元素，完全不处理，让浏览器默认行为处理
+        if (scrollableParent) {
+            // 不调用 preventDefault，让滚动正常工作
+            return;
+        }
+        
+        // 没有可滚动元素，canvas 处理
         e.preventDefault();
+        
         if (animationFrameRef.current) cancelAnimationFrame(animationFrameRef.current);
-
         const currentViewport = viewportRef.current;
 
         if (e.ctrlKey || e.metaKey) {

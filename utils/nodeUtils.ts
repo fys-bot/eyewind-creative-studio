@@ -48,6 +48,14 @@ export const getNodeWidth = (node: WorkflowNode, isExpanded: boolean): number =>
     if (node.type === 'image_input') {
         return 220;
     }
+    
+    // Script agent 支持自定义宽度
+    if (node.type === 'script_agent') {
+        if (node.data.settings?.customWidth) {
+            return node.data.settings.customWidth;
+        }
+        return 280;
+    }
 
     // Media nodes have dynamic widths based on aspect ratio
     // Removed 'image_input' from this list to use the specific width above
@@ -106,6 +114,10 @@ export const getNodeContentHeight = (node: WorkflowNode, width: number): number 
     }
     if (node.type === 'sticky_note') return 300; // Increased from default
     if (node.type === 'script_agent') {
+        // 优先使用自定义高度
+        if (node.data.settings?.customHeight) {
+            return node.data.settings.customHeight;
+        }
         // 如果有消息记录，增加高度以显示更多内容
         const hasMessages = node.data.messages && Array.isArray(node.data.messages) && node.data.messages.length > 0;
         return hasMessages ? 400 : 280;

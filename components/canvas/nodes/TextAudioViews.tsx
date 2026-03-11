@@ -56,6 +56,7 @@ export const ScriptAgentView: React.FC<NodeViewProps> = ({ node, isExpanded, con
     const [input, setInput] = useState('');
     const [isLoading, setIsLoading] = useState(false);
     const messagesEndRef = useRef<HTMLDivElement>(null);
+    const chatAreaRef = useRef<HTMLDivElement>(null);
 
     // 同步外部更新（handleRunNode 执行后更新了 node.data）
     // 1. 同步 messages
@@ -84,6 +85,25 @@ export const ScriptAgentView: React.FC<NodeViewProps> = ({ node, isExpanded, con
     useEffect(() => {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     }, [messages]);
+
+    // 添加原生滚轮事件监听器，优先级最高
+    useEffect(() => {
+        const chatArea = chatAreaRef.current;
+        if (!chatArea) return;
+
+        const handleWheel = (e: WheelEvent) => {
+            // 阻止事件冒泡到 canvas
+            e.stopPropagation();
+            e.stopImmediatePropagation();
+        };
+
+        // 使用捕获阶段，优先级最高
+        chatArea.addEventListener('wheel', handleWheel, { passive: true, capture: true });
+        
+        return () => {
+            chatArea.removeEventListener('wheel', handleWheel, true);
+        };
+    }, []);
 
     // Initialize with concept if present and no messages
     useEffect(() => {
@@ -171,6 +191,45 @@ export const ScriptAgentView: React.FC<NodeViewProps> = ({ node, isExpanded, con
 
     return (
         <div className="flex flex-col bg-white dark:bg-gray-900 rounded-xl overflow-hidden relative" style={{ height: `${contentHeight}px` }}>
+            {/* 右下角调整大小控制器 */}
+            <div 
+                className="absolute bottom-0 right-0 w-6 h-6 cursor-nwse-resize z-50 flex items-end justify-end p-1 group"
+                onMouseDown={(e) => {
+                    e.stopPropagation();
+                    const startX = e.clientX;
+                    const startY = e.clientY;
+                    const startHeight = contentHeight;
+                    const startWidth = node.data.settings?.customWidth || 280;
+                    
+                    const handleMouseMove = (moveEvent: MouseEvent) => {
+                        const deltaX = moveEvent.clientX - startX;
+                        const deltaY = moveEvent.clientY - startY;
+                        const newHeight = Math.max(200, Math.min(800, startHeight + deltaY));
+                        const newWidth = Math.max(280, Math.min(600, startWidth + deltaX));
+                        onUpdateData(node.id, { 
+                            settings: { 
+                                ...node.data.settings, 
+                                customHeight: newHeight,
+                                customWidth: newWidth
+                            } 
+                        });
+                    };
+                    
+                    const handleMouseUp = () => {
+                        document.removeEventListener('mousemove', handleMouseMove);
+                        document.removeEventListener('mouseup', handleMouseUp);
+                    };
+                    
+                    document.addEventListener('mousemove', handleMouseMove);
+                    document.addEventListener('mouseup', handleMouseUp);
+                }}
+            >
+                {/* 三条斜线图标 */}
+                <svg width="12" height="12" viewBox="0 0 12 12" className="text-gray-400 group-hover:text-indigo-500 transition-colors">
+                    <path d="M11 11L11 8M11 11L8 11M11 11L7 7M11 4L4 11" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+                </svg>
+            </div>
+            
             {/* Loading Overlay - 当节点状态为 running 时显示 */}
             {node.status === 'running' && (
                 <div className="absolute inset-0 bg-white/90 dark:bg-gray-900/90 backdrop-blur-sm z-50 flex flex-col items-center justify-center gap-3">
@@ -196,12 +255,9 @@ export const ScriptAgentView: React.FC<NodeViewProps> = ({ node, isExpanded, con
 
             {/* Chat Area */}
             <div 
+                ref={chatAreaRef}
                 className="flex-1 overflow-y-auto overflow-x-hidden custom-scrollbar p-3 space-y-3 bg-gray-50/50 dark:bg-gray-950/30 cursor-text select-text"
                 style={{ touchAction: 'pan-y', overscrollBehavior: 'contain' }}
-                onWheel={(e) => {
-                    // 阻止事件传播到 canvas，但允许在此区域内滚动
-                    e.stopPropagation();
-                }}
                 onPointerDown={(e) => e.stopPropagation()}
                 onMouseDown={(e) => e.stopPropagation()}
                 onTouchStart={(e) => e.stopPropagation()}
