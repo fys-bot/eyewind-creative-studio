@@ -837,43 +837,40 @@ const FloatingToolbar: React.FC<FloatingToolbarProps> = ({ node, edges, nodes, u
   };
 
   const renderVideoGenFooter = () => (
-      <div className="relative px-3 py-2 bg-gray-50 dark:bg-gray-800/80 border-t border-gray-100 dark:border-gray-700 flex flex-col gap-2 rounded-b-2xl">
+      <div className="relative px-3 py-2 bg-gray-50 dark:bg-gray-800/80 border-t border-gray-100 dark:border-gray-700 flex items-center gap-1.5 rounded-b-2xl">
           {showSettingsPopover && renderVideoSettingsPopover()}
-          <div className="flex items-center gap-2">
-               <ModelSelector
-                   models={getModelList()}
-                   value={node.data.settings?.model}
-                   onChange={(newModel) => {
-                       const isVeoFast = newModel === ModelType.VEO_FAST || newModel === 'veo-3.1-fast-generate-preview';
-                       updateNodeData({ 
-                           settings: { 
-                               ...node.data.settings, 
-                               model: newModel,
-                               resolution: (isVeoFast && node.data.settings?.resolution === Resolution.P1080) ? Resolution.P720 : node.data.settings?.resolution
-                           }
-                       });
-                   }}
-                   isLoading={isLoadingModels && dynamicModels.length === 0}
-                   icon={<Video size={12}/>}
-                   className="flex-1 min-w-0"
-               />
-          </div>
-          <div className="flex items-center gap-2 justify-end">
-              <button onClick={() => setShowSettingsPopover(!showSettingsPopover)} className={`flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg transition-all border text-xs font-medium whitespace-nowrap ${showSettingsPopover ? 'bg-white dark:bg-gray-700 border-gray-200 dark:border-gray-600 text-blue-600 dark:text-blue-400 shadow-sm' : 'hover:bg-white dark:hover:bg-gray-700 border-transparent hover:border-gray-200 dark:hover:border-gray-600 text-gray-600 dark:text-gray-300'}`}>
-                  <span>{node.data.settings?.aspectRatio || getSchemaParamOptions('aspect_ratio')?.default || '16:9'}</span><span className="text-gray-300 dark:text-gray-600">•</span><span>{node.data.settings?.duration || getSchemaParamOptions('duration')?.default || 4}s</span><span className="text-gray-300 dark:text-gray-600">•</span><span>{node.data.settings?.resolution || getSchemaParamOptions('resolution')?.default || '720p'}</span>{isLoadingSchema && <Loader2 size={10} className="animate-spin text-blue-400 ml-1"/>}<ChevronDown size={10} className={`text-gray-400 transition-transform ${showSettingsPopover ? 'rotate-180' : ''}`}/>
+          <ModelSelector
+              models={getModelList()}
+              value={node.data.settings?.model}
+              onChange={(newModel) => {
+                  const isVeoFast = newModel === ModelType.VEO_FAST || newModel === 'veo-3.1-fast-generate-preview';
+                  updateNodeData({ 
+                      settings: { 
+                          ...node.data.settings, 
+                          model: newModel,
+                          resolution: (isVeoFast && node.data.settings?.resolution === Resolution.P1080) ? Resolution.P720 : node.data.settings?.resolution
+                      }
+                  });
+              }}
+              isLoading={isLoadingModels && dynamicModels.length === 0}
+              icon={<Video size={12}/>}
+              className="flex-1 min-w-0"
+          />
+          <div className="flex-shrink-0 w-px h-4 bg-gray-200 dark:bg-gray-600"></div>
+          <button onClick={() => setShowSettingsPopover(!showSettingsPopover)} className={`flex items-center gap-1 px-2 py-1.5 rounded-lg transition-all border text-[11px] font-medium whitespace-nowrap flex-shrink-0 ${showSettingsPopover ? 'bg-white dark:bg-gray-700 border-gray-200 dark:border-gray-600 text-blue-600 dark:text-blue-400 shadow-sm' : 'hover:bg-white dark:hover:bg-gray-700 border-transparent hover:border-gray-200 dark:hover:border-gray-600 text-gray-600 dark:text-gray-300'}`}>
+              <span>{node.data.settings?.aspectRatio || getSchemaParamOptions('aspect_ratio')?.default || '16:9'}</span><span className="text-gray-300 dark:text-gray-600">·</span><span>{node.data.settings?.duration || getSchemaParamOptions('duration')?.default || 4}s</span><span className="text-gray-300 dark:text-gray-600">·</span><span>{node.data.settings?.resolution || getSchemaParamOptions('resolution')?.default || '720p'}</span>{isLoadingSchema && <Loader2 size={10} className="animate-spin text-blue-400 ml-0.5"/>}<ChevronDown size={10} className={`text-gray-400 transition-transform ${showSettingsPopover ? 'rotate-180' : ''}`}/>
+          </button>
+          {node.status === 'running' ? (
+              <button onClick={(e) => { e.stopPropagation(); cancelAllPolls(); onCancelRun?.(); }} className="flex items-center gap-1 bg-red-500 text-white px-2.5 py-1.5 rounded-lg text-xs font-bold hover:bg-red-600 transition-all whitespace-nowrap flex-shrink-0 shadow-sm">
+                  <X size={12} />
+                  <span>{lang === 'zh' || lang === 'tw' ? '停止' : 'Stop'}</span>
               </button>
-              {node.status === 'running' ? (
-                  <button onClick={(e) => { e.stopPropagation(); cancelAllPolls(); onCancelRun?.(); }} className="flex items-center gap-1.5 bg-red-500 text-white px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-red-600 transition-all active:scale-95 shadow-sm">
-                      <X size={12} />
-                      <span>{lang === 'zh' || lang === 'tw' ? '停止' : 'Stop'}</span>
-                  </button>
-              ) : (
-                  <button onClick={onRun} disabled={isLoadingSchema} className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all active:scale-95 shadow-sm ${isLoadingSchema ? 'bg-gray-100 dark:bg-gray-700 text-gray-400 cursor-wait' : 'bg-black dark:bg-white text-white dark:text-black hover:bg-gray-800 dark:hover:bg-gray-200'}`}>
-                      {isLoadingSchema ? <Loader2 size={12} className="animate-spin"/> : <Zap size={12} className="text-yellow-400 dark:text-yellow-600" fill="currentColor"/>}
-                      <span>{isLoadingSchema ? (lang === 'zh' || lang === 'tw' ? '加载中' : 'Loading') : (t.actions.run || 'Run')}</span>
-                  </button>
-              )}
-          </div>
+          ) : (
+              <button onClick={onRun} disabled={isLoadingSchema} className={`flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all whitespace-nowrap flex-shrink-0 shadow-sm ${isLoadingSchema ? 'bg-gray-100 dark:bg-gray-700 text-gray-400 cursor-wait' : 'bg-black dark:bg-white text-white dark:text-black hover:bg-gray-800 dark:hover:bg-gray-200'}`}>
+                  {isLoadingSchema ? <Loader2 size={12} className="animate-spin"/> : <Zap size={12} className="text-yellow-400 dark:text-yellow-600" fill="currentColor"/>}
+                  <span>{isLoadingSchema ? (lang === 'zh' || lang === 'tw' ? '加载中' : 'Loading') : (t.actions.run || 'Run')}</span>
+              </button>
+          )}
       </div>
   );
 
