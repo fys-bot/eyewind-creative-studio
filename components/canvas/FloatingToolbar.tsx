@@ -714,11 +714,12 @@ const FloatingToolbar: React.FC<FloatingToolbarProps> = ({ node, edges, nodes, u
       const durationParam = getSchemaParamOptions('duration');
       
       return (
-      <>
-      {/* 点击空白处关闭弹窗的透明遮罩 */}
-      <div className="fixed inset-0 z-40" onClick={() => setShowSettingsPopover(false)} />
-      <div className="absolute bottom-full right-0 mb-3 bg-white dark:bg-gray-800 rounded-xl shadow-2xl border border-gray-100 dark:border-gray-700 p-3 w-64 z-50 animate-in fade-in zoom-in-95 origin-bottom-right">
+      <div className="absolute bottom-full right-0 mb-3 bg-white dark:bg-gray-800 rounded-xl shadow-2xl border border-gray-100 dark:border-gray-700 p-3 w-64 z-50 animate-in fade-in zoom-in-95 origin-bottom-right"
+          onMouseDown={(e) => e.stopPropagation()} onClick={(e) => e.stopPropagation()}>
           <div className="absolute -bottom-1.5 right-11 w-3 h-3 bg-white dark:bg-gray-800 border-b border-r border-gray-100 dark:border-gray-700 transform rotate-45"></div>
+          <button onClick={() => setShowSettingsPopover(false)} className="absolute top-2 right-2 p-1 rounded-md text-gray-400 hover:text-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors z-10">
+              <X size={14} />
+          </button>
           
           {isLoadingSchema && (
               <div className="absolute inset-0 bg-white/60 dark:bg-gray-800/60 backdrop-blur-[1px] rounded-xl z-20 flex items-center justify-center">
@@ -832,7 +833,6 @@ const FloatingToolbar: React.FC<FloatingToolbarProps> = ({ node, edges, nodes, u
               </div>
           )}
       </div>
-      </>
   );
   };
 
