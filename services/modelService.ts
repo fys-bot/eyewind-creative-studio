@@ -82,6 +82,10 @@ const CACHE_DURATION = 5 * 60 * 1000; // 5分钟
 const schemaCache = new Map<string, { data: ModelSchema; time: number }>();
 const SCHEMA_CACHE_DURATION = 10 * 60 * 1000; // 10分钟
 
+// 请求去重：防止多个组件同时发起相同请求
+let pendingModelsRequest: Promise<AIModel[]> | null = null;
+const pendingSchemaRequests = new Map<string, Promise<ModelSchema | null>>();
+
 // API Token 缓存
 let cachedApiToken: string | null = null;
 
@@ -197,6 +201,12 @@ export const fetchModelsFromGateway = async (): Promise<AIModel[]> => {
         return cachedModels;
     }
 
+    // 去重：如果已有进行中的请求，复用它
+    if (pendingModelsRequest) {
+        return pendingModelsRequest;
+    }
+
+    const doFetch = async (): Promise<AIModel[]> => {
     try {
         const response = await fetch(`${API_BASE_URL}/models`, { method: 'GET' });
 
@@ -207,7 +217,6 @@ export const fetchModelsFromGateway = async (): Promise<AIModel[]> => {
         const data: ModelsResponse = await response.json();
         
         const models = data.data.map(model => {
-            // 使用 API 返回的 info.name 作为显示标签
             const label = model.info?.name || model.id;
             const developer = model.info?.developer || model.provider || 'Unknown';
             const normalizedType = normalizeModelType(model.type || 'Other');
@@ -217,7 +226,6 @@ export const fetchModelsFromGateway = async (): Promise<AIModel[]> => {
                 ...model,
                 normalizedType,
                 label,
-                // 兼容旧字段
                 name: model.info?.name,
                 description: model.info?.description,
                 owned_by: normalizedDev,
@@ -225,20 +233,25 @@ export const fetchModelsFromGateway = async (): Promise<AIModel[]> => {
             };
         });
 
-        // 按 model.id 去重
         const uniqueModels = Array.from(
             new Map(models.map(m => [m.id, m])).values()
         );
 
         cachedModels = uniqueModels;
-        lastFetchTime = now;
+        lastFetchTime = Date.now();
         
         console.log(`[Model Service] Fetched ${uniqueModels.length} models (${models.length} total)`);
         return uniqueModels;
     } catch (error) {
         console.error('[Model Service] Failed to fetch models:', error);
         return cachedModels || [];
+    } finally {
+        pendingModelsRequest = null;
     }
+    };
+
+    pendingModelsRequest = doFetch();
+    return pendingModelsRequest;
 };
 
 // === 模型 Schema (docs-json) ===
@@ -255,6 +268,12 @@ export const getModelSchema = async (modelId: string): Promise<ModelSchema | nul
         return cached.data;
     }
 
+    // 去重：如果已有进行中的相同请求，复用它
+    if (pendingSchemaRequests.has(modelId)) {
+        return pendingSchemaRequests.get(modelId)!;
+    }
+
+    const doFetch = async (): Promise<ModelSchema | null> => {
     const url = `${API_BASE_URL}/docs-json?model=${encodeURIComponent(modelId)}`;
     console.log(`[Model Service] Fetching schema: ${url}`);
 
@@ -278,7 +297,6 @@ export const getModelSchema = async (modelId: string): Promise<ModelSchema | nul
     } catch (error) {
         console.error(`[Model Service] Failed to fetch schema for ${modelId}:`, error);
         
-        // 如果是开发环境代理失败，尝试直接请求生产地址
         if (isDevelopment) {
             try {
                 const directUrl = `https://ai-gateway.eyewind.com/v1/docs-json?model=${encodeURIComponent(modelId)}`;
@@ -296,7 +314,14 @@ export const getModelSchema = async (modelId: string): Promise<ModelSchema | nul
         }
         
         return null;
+    } finally {
+        pendingSchemaRequests.delete(modelId);
     }
+    };
+
+    const promise = doFetch();
+    pendingSchemaRequests.set(modelId, promise);
+    return promise;
 };
 
 /**
