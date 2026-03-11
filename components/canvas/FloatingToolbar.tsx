@@ -318,13 +318,7 @@ const FloatingToolbar: React.FC<FloatingToolbarProps> = ({ node, edges, nodes, u
 
 
   useLayoutEffect(() => {
-      const handleClickOutside = (event: MouseEvent) => {
-          if (toolbarRef.current && !toolbarRef.current.contains(event.target as Node)) {
-              setShowSettingsPopover(false);
-          }
-      };
-      document.addEventListener('mousedown', handleClickOutside);
-      return () => document.removeEventListener('mousedown', handleClickOutside);
+      // handleClickOutside 已移除，参数弹框通过关闭按钮(X)关闭
   }, []);
 
   const getUpstreamNode = (handleId: string) => {
