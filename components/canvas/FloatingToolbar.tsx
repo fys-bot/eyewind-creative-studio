@@ -709,7 +709,7 @@ const FloatingToolbar: React.FC<FloatingToolbarProps> = ({ node, edges, nodes, u
       
       return (
       <div className="absolute bottom-full right-0 mb-3 bg-white dark:bg-gray-800 rounded-xl shadow-2xl border border-gray-100 dark:border-gray-700 p-3 w-64 z-50 animate-in fade-in zoom-in-95 origin-bottom-right"
-          onMouseDown={(e) => e.stopPropagation()} onClick={(e) => e.stopPropagation()}>
+          onMouseDown={(e) => e.stopPropagation()} onPointerDown={(e) => e.stopPropagation()} onClick={(e) => e.stopPropagation()} onTouchStart={(e) => e.stopPropagation()}>
           <div className="absolute -bottom-1.5 right-11 w-3 h-3 bg-white dark:bg-gray-800 border-b border-r border-gray-100 dark:border-gray-700 transform rotate-45"></div>
           <button 
               onClick={(e) => { e.stopPropagation(); e.preventDefault(); setShowSettingsPopover(false); }} 
@@ -817,7 +817,10 @@ const FloatingToolbar: React.FC<FloatingToolbarProps> = ({ node, edges, nodes, u
           {/* Audio Toggle for Seedance (or generic if supported) */}
           {(node.data.settings?.model?.includes('seedance') || node.data.settings?.model?.includes('doubao')) && (
               <div className="relative z-10 mt-3 pt-3 border-t border-gray-100 dark:border-gray-700">
-                  <div className="flex items-center justify-between cursor-pointer group" onClick={() => updateNodeData({ settings: { ...node.data.settings, withAudio: !node.data.settings?.withAudio }})}>
+                  <div className="flex items-center justify-between cursor-pointer group" 
+                      onClick={(e) => { e.stopPropagation(); updateNodeData({ settings: { ...node.data.settings, withAudio: !node.data.settings?.withAudio }}); }}
+                      onMouseDown={(e) => e.stopPropagation()} 
+                      onPointerDown={(e) => e.stopPropagation()}>
                       <div className="flex items-center gap-2">
                           <div className={`p-1.5 rounded-md ${node.data.settings?.withAudio ? "bg-blue-100 dark:bg-blue-900/50 text-blue-600" : "bg-gray-100 dark:bg-gray-700 text-gray-400"}`}>
                              <Music size={14} />
