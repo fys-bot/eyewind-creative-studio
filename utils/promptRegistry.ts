@@ -38,7 +38,23 @@ export const PROMPTS = {
 
     // 剧本/策划 Agent (根据角色动态调整)
     SCRIPT_AGENT: (concept: string, role: string = 'director') => {
-        const commonRules = `Rules: Return ONLY 3 distinct, actionable bullet points/sections. Do not output conversational filler.`;
+        // 检测输入语言
+        const hasChinese = /[\u4e00-\u9fa5]/.test(concept);
+        const hasJapanese = /[\u3040-\u309f\u30a0-\u30ff]/.test(concept);
+        const hasKorean = /[\uac00-\ud7af]/.test(concept);
+        
+        let languageInstruction = '';
+        if (hasChinese) {
+            languageInstruction = 'CRITICAL: The user input is in Chinese. You MUST respond in Chinese (简体中文). 用户输入是中文，你必须用中文回复。';
+        } else if (hasJapanese) {
+            languageInstruction = 'CRITICAL: The user input is in Japanese. You MUST respond in Japanese (日本語).';
+        } else if (hasKorean) {
+            languageInstruction = 'CRITICAL: The user input is in Korean. You MUST respond in Korean (한국어).';
+        } else {
+            languageInstruction = 'CRITICAL: The user input is in English. You MUST respond in English.';
+        }
+        
+        const commonRules = `Rules: Return ONLY 3 distinct, actionable bullet points/sections. Do not output conversational filler. ${languageInstruction}`;
 
         switch (role) {
             case 'central_dispatcher':

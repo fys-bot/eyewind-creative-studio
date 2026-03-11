@@ -102,16 +102,35 @@ export const ScriptAgentView: React.FC<NodeViewProps> = ({ node, isExpanded, con
         setIsLoading(true);
 
         try {
+            // 检测用户输入的语言
+            const hasChinese = /[\u4e00-\u9fa5]/.test(text);
+            const hasJapanese = /[\u3040-\u309f\u30a0-\u30ff]/.test(text);
+            const hasKorean = /[\uac00-\ud7af]/.test(text);
+            
+            let languageInstruction = '';
+            if (hasChinese) {
+                languageInstruction = 'IMPORTANT: The user is communicating in Chinese. You MUST respond in Chinese (简体中文).';
+            } else if (hasJapanese) {
+                languageInstruction = 'IMPORTANT: The user is communicating in Japanese. You MUST respond in Japanese (日本語).';
+            } else if (hasKorean) {
+                languageInstruction = 'IMPORTANT: The user is communicating in Korean. You MUST respond in Korean (한국어).';
+            } else {
+                languageInstruction = 'IMPORTANT: The user is communicating in English. You MUST respond in English.';
+            }
+
             // Construct context from history
             const historyContext = newMessages.map(m => `${m.role}: ${m.content}`).join('\n');
             const prompt = `You are a professional creative assistant inside a node-based workflow. 
             Your goal is to help the user generate high-quality text content (scripts, prompts, ideas).
+            
+            ${languageInstruction}
+            
             Current Context/History:
             ${historyContext}
             
             User's latest request: "${text}"
             
-            Please provide a helpful, creative response. If generating a script or content, just output the content directly.`;
+            Please provide a helpful, creative response in the SAME LANGUAGE as the user's input. If generating a script or content, just output the content directly.`;
 
             const result = await generateTextViaGateway({ 
                 model: node.data.settings?.model || 'gpt-4o', 
@@ -151,7 +170,16 @@ export const ScriptAgentView: React.FC<NodeViewProps> = ({ node, isExpanded, con
     };
 
     return (
-        <div className="flex flex-col bg-white dark:bg-gray-900 rounded-xl overflow-hidden" style={{ height: `${contentHeight}px` }}>
+        <div className="flex flex-col bg-white dark:bg-gray-900 rounded-xl overflow-hidden relative" style={{ height: `${contentHeight}px` }}>
+            {/* Loading Overlay - 当节点状态为 running 时显示 */}
+            {node.status === 'running' && (
+                <div className="absolute inset-0 bg-white/90 dark:bg-gray-900/90 backdrop-blur-sm z-50 flex flex-col items-center justify-center gap-3">
+                    <Loader2 size={32} className="animate-spin text-indigo-500" />
+                    <div className="text-sm font-medium text-gray-700 dark:text-gray-300">生成中...</div>
+                    <div className="text-xs text-gray-500 dark:text-gray-400">AI 正在处理您的请求</div>
+                </div>
+            )}
+            
             {/* Header / Actions */}
             <div className="flex items-center justify-between px-3 py-1.5 border-b border-gray-100 dark:border-gray-800 bg-gray-50 dark:bg-gray-950/50">
                  <span className="text-[10px] font-semibold text-indigo-500 uppercase tracking-wider flex items-center gap-1">
@@ -168,14 +196,11 @@ export const ScriptAgentView: React.FC<NodeViewProps> = ({ node, isExpanded, con
 
             {/* Chat Area */}
             <div 
-                className="flex-1 overflow-y-auto custom-scrollbar p-3 space-y-3 bg-gray-50/50 dark:bg-gray-950/30 cursor-text select-text"
+                className="flex-1 overflow-y-auto overflow-x-hidden custom-scrollbar p-3 space-y-3 bg-gray-50/50 dark:bg-gray-950/30 cursor-text select-text"
                 style={{ touchAction: 'pan-y', overscrollBehavior: 'contain' }}
                 onWheel={(e) => {
-                    // Only stop propagation if it's NOT a pinch gesture (ctrlKey is false)
-                    if (!e.ctrlKey && !e.metaKey) {
-                        e.stopPropagation();
-                        e.nativeEvent.stopImmediatePropagation();
-                    }
+                    // 阻止事件传播到 canvas，但允许在此区域内滚动
+                    e.stopPropagation();
                 }}
                 onPointerDown={(e) => e.stopPropagation()}
                 onMouseDown={(e) => e.stopPropagation()}

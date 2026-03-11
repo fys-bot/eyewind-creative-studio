@@ -105,7 +105,12 @@ export const getNodeContentHeight = (node: WorkflowNode, width: number): number 
         return width * ratio;
     }
     if (node.type === 'sticky_note') return 300; // Increased from default
-    if (node.type === 'script_agent' || node.type === 'ai_refine' || node.type === 'prompt_translator') return 280;
+    if (node.type === 'script_agent') {
+        // 如果有消息记录，增加高度以显示更多内容
+        const hasMessages = node.data.messages && Array.isArray(node.data.messages) && node.data.messages.length > 0;
+        return hasMessages ? 400 : 280;
+    }
+    if (node.type === 'ai_refine' || node.type === 'prompt_translator') return 280;
     if (node.type === 'audio_gen') return 160;
     if (node.type === 'video_composer') return 160;
     if (node.type === 'pro_icon_gen' || node.type === 'pro_art_director') return 600; // Default tall for Pro Nodes
