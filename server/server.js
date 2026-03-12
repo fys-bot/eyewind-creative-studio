@@ -174,14 +174,13 @@ app.delete('/api/projects/:id', authenticateToken, (req, res) => {
 app.post('/api/upload', authenticateToken, upload.single('file'), (req, res) => {
     if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
     
-    // 构建完整的 URL - 使用正确的域名
-    // 优先使用 X-Forwarded-Host（反向代理设置的）
-    const host = req.get('x-forwarded-host') || req.get('host');
-    const protocol = req.get('x-forwarded-proto') || req.protocol;
+    // 构建完整的 URL - 强制使用 HTTPS 和正确的域名
+    const host = req.get('x-forwarded-host') || req.get('host') || 'ai-gateway.eyewind.com';
+    const protocol = 'https'; // 强制使用 HTTPS
     const fileUrl = `${protocol}://${host}/uploads/${req.file.filename}`;
     const assetId = uuidv4();
     
-    console.log('Upload successful:', { fileUrl, filename: req.file.filename });
+    console.log('Upload successful:', { fileUrl, filename: req.file.filename, host, protocol });
     
     db.run(`INSERT INTO assets (id, filename, path, mimetype, size, createdAt) VALUES (?, ?, ?, ?, ?, ?)`,
         [assetId, req.file.filename, fileUrl, req.file.mimetype, req.file.size, Date.now()],
