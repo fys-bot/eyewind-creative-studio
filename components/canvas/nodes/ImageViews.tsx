@@ -113,6 +113,25 @@ export const ImageInputView: React.FC<NodeViewProps> = ({ node, contentHeight, t
             onPaste={handlePaste}
             tabIndex={0}
         >
+            {/* 隐藏的文件上传 input */}
+            <input
+                id={`ref-upload-${node.id}`}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={async (e) => {
+                    const file = e.target.files?.[0];
+                    if (!file) return;
+                    try {
+                        const { uploadAsset } = await import('../../../services/storageService');
+                        const url = await uploadAsset(file);
+                        onUpdateData(node.id, { value: url });
+                    } catch (err) {
+                        console.error('Failed to upload image', err);
+                    }
+                }}
+            />
+            
             {node.data.value ? (
                 isImageContent(node.data.value) ? (
                     <>
