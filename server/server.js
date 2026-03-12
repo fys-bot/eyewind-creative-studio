@@ -174,7 +174,10 @@ app.delete('/api/projects/:id', authenticateToken, (req, res) => {
 app.post('/api/upload', authenticateToken, upload.single('file'), (req, res) => {
     if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
     
-    const fileUrl = `/uploads/${req.file.filename}`;
+    // 构建完整的 URL
+    const protocol = req.protocol;
+    const host = req.get('host');
+    const fileUrl = `${protocol}://${host}/uploads/${req.file.filename}`;
     const assetId = uuidv4();
     
     db.run(`INSERT INTO assets (id, filename, path, mimetype, size, createdAt) VALUES (?, ?, ?, ?, ?, ?)`,
