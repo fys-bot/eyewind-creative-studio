@@ -174,11 +174,14 @@ app.delete('/api/projects/:id', authenticateToken, (req, res) => {
 app.post('/api/upload', authenticateToken, upload.single('file'), (req, res) => {
     if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
     
-    // 构建完整的 URL
-    const protocol = req.protocol;
-    const host = req.get('host');
+    // 构建完整的 URL - 使用正确的域名
+    // 优先使用 X-Forwarded-Host（反向代理设置的）
+    const host = req.get('x-forwarded-host') || req.get('host');
+    const protocol = req.get('x-forwarded-proto') || req.protocol;
     const fileUrl = `${protocol}://${host}/uploads/${req.file.filename}`;
     const assetId = uuidv4();
+    
+    console.log('Upload successful:', { fileUrl, filename: req.file.filename });
     
     db.run(`INSERT INTO assets (id, filename, path, mimetype, size, createdAt) VALUES (?, ?, ?, ?, ?, ?)`,
         [assetId, req.file.filename, fileUrl, req.file.mimetype, req.file.size, Date.now()],

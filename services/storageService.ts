@@ -377,10 +377,14 @@ export const uploadAsset = async (file: File): Promise<string> => {
     if (getAuthToken()) {
         try {
             const data = await api.upload(file);
+            console.log('Upload response:', data);
             return data.url;
-        } catch (e) { console.error("Upload failed", e); }
+        } catch (e) { 
+            console.error("Upload failed", e); 
+        }
     }
     // Fallback to base64
+    console.log('Using base64 fallback for:', file.name);
     return new Promise((resolve, reject) => {
         const reader = new FileReader();
         reader.onload = () => resolve(reader.result as string);
