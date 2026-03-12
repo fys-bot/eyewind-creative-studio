@@ -67,7 +67,58 @@ export const ImageInputView: React.FC<NodeViewProps> = ({ node, contentHeight, t
         try {
             const { uploadAsset } = await import('../../../services/storageService');
             const url = await uploadAsset(imageFile);
-            onUpdateData(node.id, { value: url });
+            
+            // 加载图片获取实际尺寸
+            const img = new Image();
+            img.onload = () => {
+                const ratio = img.width / img.height;
+                onUpdateData(node.id, { 
+                    value: url,
+                    settings: {
+                        ...node.data.settings,
+                        imageRatio: ratio
+                    }
+                });
+            };
+            img.onerror = () => {
+                onUpdateData(node.id, { value: url });
+            };
+            img.src = url;
+        } catch (e) {
+            console.error('Failed to upload dropped image', e);
+        }
+    };
+
+    const handleDrop = async (event: React.DragEvent) => {
+        event.preventDefault();
+        event.stopPropagation();
+
+        const fileList = event.dataTransfer.files as FileList;
+        const files: File[] = fileList ? Array.from(fileList) : [];
+        const imageFile = files.find((f: File) => f && typeof (f as any).type === 'string' && (f as any).type.startsWith('image/'));
+        if (!imageFile) return;
+
+        try {
+            const { uploadAsset } = await import('../../../services/storageService');
+            const url = await uploadAsset(imageFile);
+            
+            // 加载图片获取实际尺寸
+            const img = new Image();
+            img.onload = () => {
+                const ratio = img.width / img.height;
+                onUpdateData(node.id, { 
+                    value: url,
+                    isReplacing: false, // 清除替换状态
+                    settings: {
+                        ...node.data.settings,
+                        imageRatio: ratio
+                    }
+                });
+            };
+            img.onerror = () => {
+                onUpdateData(node.id, { value: url, isReplacing: false });
+            };
+            img.src = url;
         } catch (e) {
             console.error('Failed to upload dropped image', e);
         }
@@ -93,7 +144,24 @@ export const ImageInputView: React.FC<NodeViewProps> = ({ node, contentHeight, t
         try {
             const { uploadAsset } = await import('../../../services/storageService');
             const url = await uploadAsset(imageFile);
-            onUpdateData(node.id, { value: url });
+            
+            // 加载图片获取实际尺寸
+            const img = new Image();
+            img.onload = () => {
+                const ratio = img.width / img.height;
+                onUpdateData(node.id, { 
+                    value: url,
+                    isReplacing: false, // 清除替换状态
+                    settings: {
+                        ...node.data.settings,
+                        imageRatio: ratio
+                    }
+                });
+            };
+            img.onerror = () => {
+                onUpdateData(node.id, { value: url, isReplacing: false });
+            };
+            img.src = url;
         } catch (e) {
             console.error('Failed to upload pasted image', e);
         }
@@ -125,7 +193,25 @@ export const ImageInputView: React.FC<NodeViewProps> = ({ node, contentHeight, t
                     try {
                         const { uploadAsset } = await import('../../../services/storageService');
                         const url = await uploadAsset(file);
-                        onUpdateData(node.id, { value: url });
+                        
+                        // 加载图片获取实际尺寸
+                        const img = new Image();
+                        img.onload = () => {
+                            const ratio = img.width / img.height;
+                            onUpdateData(node.id, { 
+                                value: url,
+                                isReplacing: false, // 清除替换状态
+                                settings: {
+                                    ...node.data.settings,
+                                    imageRatio: ratio
+                                }
+                            });
+                        };
+                        img.onerror = () => {
+                            // 如果加载失败，仍然保存 URL
+                            onUpdateData(node.id, { value: url, isReplacing: false });
+                        };
+                        img.src = url;
                     } catch (err) {
                         console.error('Failed to upload image', err);
                     }
