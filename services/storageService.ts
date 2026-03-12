@@ -374,6 +374,17 @@ export const updateProjectTags = async (projectId: string, tags: string[]): Prom
 
 // --- Asset Upload Helper ---
 export const uploadAsset = async (file: File): Promise<string> => {
+    // 暂时禁用服务器上传，直接使用 base64
+    // TODO: 配置 HTTPS 后再启用服务器上传
+    console.log('Using base64 encoding for:', file.name);
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result as string);
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+    });
+    
+    /* 服务器上传逻辑（需要 HTTPS 配置）
     if (getAuthToken()) {
         try {
             const data = await api.upload(file);
@@ -383,14 +394,7 @@ export const uploadAsset = async (file: File): Promise<string> => {
             console.error("Upload failed", e); 
         }
     }
-    // Fallback to base64
-    console.log('Using base64 fallback for:', file.name);
-    return new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = () => resolve(reader.result as string);
-        reader.onerror = reject;
-        reader.readAsDataURL(file);
-    });
+    */
 };
 
 // --- Project Comments ---
