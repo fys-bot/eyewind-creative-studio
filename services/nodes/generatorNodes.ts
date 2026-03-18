@@ -26,6 +26,9 @@ export class ImageGenNode extends BaseNode {
         prompt = ctx.inputs['prompt'];
     }
     
+    console.log('[ImageGenNode] 所有输入:', Object.keys(ctx.inputs));
+    console.log('[ImageGenNode] 输入详情:', Object.entries(ctx.inputs).map(([k, v]) => `${k}: ${typeof v === 'string' ? v.substring(0, 60) + '...' : typeof v}`));
+    
     const hasRef = !!(ctx.inputs['image_ref'] || ctx.inputs['char_ref']);
     if (!prompt && !hasRef) {
         throw new Error("Please connect a text prompt or image reference.");
@@ -37,6 +40,13 @@ export class ImageGenNode extends BaseNode {
     const refImages: string[] = [];
     if (ctx.inputs['image_ref']) refImages.push(ctx.inputs['image_ref']);
     if (ctx.inputs['char_ref']) refImages.push(ctx.inputs['char_ref']);
+    
+    console.log('[ImageGenNode] 参考图收集:', {
+        hasImageRef: !!ctx.inputs['image_ref'],
+        hasCharRef: !!ctx.inputs['char_ref'],
+        imageRefType: ctx.inputs['image_ref'] ? (ctx.inputs['image_ref'].substring(0, 30) + '...') : 'none',
+        refCount: refImages.length
+    });
     
     // We append context info to help the model distinct inputs if referenced by name
     // 注意：图片已通过 referenceImages 传递，不要把链接/文案放到 prompt 里，否则模型会把文字画到图片中

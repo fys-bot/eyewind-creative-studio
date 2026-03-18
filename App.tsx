@@ -1224,6 +1224,11 @@ const AppContent: React.FC = () => {
 
           const inputs = processor.getInputs() || [];
           console.log(`[Node Execution] 📥 处理输入端口 (${inputs.length} 个)...`);
+          console.log(`[Node Execution]   端口列表:`, inputs.map(i => `${i.id}(${i.type})`).join(', '));
+          
+          // 打印所有连接到此节点的边
+          const allEdgesToNode = edges.filter(e => e.target === nodeId);
+          console.log(`[Node Execution]   连接到此节点的边 (${allEdgesToNode.length} 条):`, allEdgesToNode.map(e => `${e.source}→${e.target} [sourceHandle=${e.sourceHandle}, targetHandle=${e.targetHandle}]`));
           
           const usedEdges = new Set<string>();
 
@@ -1236,6 +1241,13 @@ const AppContent: React.FC = () => {
               
               // Get all edges connected to this input handle
               let connectedEdges = relevantEdges.filter(e => e.targetHandle === inputId);
+              
+              console.log(`[Node Execution]   resolveInputData: inputId="${inputId}", requiredType="${requiredType}", relevantEdges=${relevantEdges.length}, exactMatch=${connectedEdges.length}`);
+              if (relevantEdges.length > 0) {
+                  relevantEdges.forEach((e, i) => {
+                      console.log(`[Node Execution]   边[${i}]: source=${e.source}, targetHandle="${e.targetHandle}", sourceHandle="${e.sourceHandle}", match=${e.targetHandle === inputId}`);
+                  });
+              }
 
               // If no explicit connection, try fallback (smart auto-match) - keeps legacy behavior of finding first match
               if (connectedEdges.length === 0) {
@@ -1283,6 +1295,13 @@ const AppContent: React.FC = () => {
 
                   inputLabels[inputId] = sourceNode.data.label || 'Unknown';
 
+                  console.log(`[Node Execution]   源节点 "${sourceNode.data.label}" (${sourceNode.type}):`, {
+                      hasOutputResult: !!sourceNode.data.outputResult,
+                      hasValue: !!sourceNode.data.value,
+                      valuePreview: sourceNode.data.value ? (typeof sourceNode.data.value === 'string' ? sourceNode.data.value.substring(0, 60) : typeof sourceNode.data.value) : 'empty',
+                      outputResultPreview: sourceNode.data.outputResult ? (typeof sourceNode.data.outputResult === 'string' ? sourceNode.data.outputResult.substring(0, 60) : typeof sourceNode.data.outputResult) : 'empty'
+                  });
+
                   if (sourceNode.data.outputResult) return sourceNode.data.outputResult;
                   if (sourceNode.data.value) return sourceNode.data.value; 
                   if (sourceNode.data.outputList) return sourceNode.data.outputList;
@@ -1309,6 +1328,31 @@ const AppContent: React.FC = () => {
                  inputValues[input.id] = val;
                  console.log(`[Node Execution]   ✓ 输入 "${input.id}": ${typeof val === 'string' ? val.substring(0, 50) + '...' : typeof val}`);
              }
+          }
+
+          // 强制扫描：对于 image_gen/video_gen 节点，直接从连接的上游节点获取图片数据
+          if (node.type === 'image_gen' || node.type === 'video_gen') {
+              const nodeEdges = edges.filter(e => e.target === nodeId);
+              for (const edge of nodeEdges) {
+                  const srcNode = nodes.find(n => n.id === edge.source);
+                  if (!srcNode) continue;
+                  
+                  // 获取源节点的图片数据
+                  const imgData = srcNode.data.value || srcNode.data.outputResult;
+                  if (!imgData || typeof imgData !== 'string') continue;
+                  
+                  const isImage = imgData.startsWith('data:image') || imgData.startsWith('http') || imgData.startsWith('blob:');
+                  if (!isImage) continue;
+                  
+                  // 确定应该放到哪个输入端口
+                  const targetHandle = edge.targetHandle;
+                  const inputId = targetHandle || (srcNode.type === 'character_ref' ? 'char_ref' : 'image_ref');
+                  
+                  if (!inputValues[inputId]) {
+                      inputValues[inputId] = imgData;
+                      console.log(`[Node Execution]   ✓ 强制注入图片输入 "${inputId}" from "${srcNode.data.label}" (${srcNode.type}): ${imgData.substring(0, 50)}...`);
+                  }
+              }
           }
 
           console.log(`[Node Execution] 🎯 准备执行节点处理器...`);
@@ -1359,6 +1403,7 @@ const AppContent: React.FC = () => {
   };
 
   const handleConnect = (sourceId: string, targetId: string, sourceHandle?: string, targetHandle?: string) => {
+      console.log(`[handleConnect] 建立连接: ${sourceId}(${sourceHandle}) → ${targetId}(${targetHandle})`);
       // 1. Validation & Auto-Match Logic
       const srcNode = nodes.find(n => n.id === sourceId);
       const tgtNode = nodes.find(n => n.id === targetId);
@@ -1508,6 +1553,7 @@ const AppContent: React.FC = () => {
           sourceHandle,
           targetHandle
       };
+      console.log(`[handleConnect] 创建边:`, newEdge);
       setEdges(prev => [...prev, newEdge]);
   };
 

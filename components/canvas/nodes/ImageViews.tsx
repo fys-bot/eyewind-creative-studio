@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { Download, Copy, ImageIcon, UserCircle2, Palette, ScanLine, Eye, Monitor } from 'lucide-react';
+import { Download, Copy, ImageIcon, UserCircle2, Palette, ScanLine, Monitor, FileText, Info } from 'lucide-react';
 import { SimpleVideoPlayer } from '../SimpleVideoPlayer';
 import { handleDownload, handleCopy, NodeViewProps } from './nodeViewUtils';
 import { MODELS } from '../../../constants';
@@ -12,6 +12,7 @@ const isImageContent = (content: string) => {
 export const PreviewView: React.FC<NodeViewProps> = ({ node, isExpanded, contentHeight, t }) => {
     const content = node.data.outputResult;
     const [isCopied, setIsCopied] = useState(false);
+    const [showInfo, setShowInfo] = useState(false);
 
     useEffect(() => {
         if (isCopied) {
@@ -20,32 +21,80 @@ export const PreviewView: React.FC<NodeViewProps> = ({ node, isExpanded, content
         }
     }, [isCopied]);
 
+    // 获取图片尺寸信息
+    const [imageDimensions, setImageDimensions] = useState<{width: number, height: number} | null>(null);
+    useEffect(() => {
+        if (content && isImageContent(content)) {
+            const img = new Image();
+            img.onload = () => {
+                setImageDimensions({ width: img.naturalWidth, height: img.naturalHeight });
+            };
+            img.src = content;
+        } else {
+            setImageDimensions(null);
+        }
+    }, [content]);
+
     return (
         <div className="w-full bg-gray-50 dark:bg-gray-800 overflow-hidden flex items-center justify-center relative group" style={{ height: contentHeight, borderRadius: '0 0 0 0' }}>
+            {/* Preview 标识 */}
+            {content && (
+                <div className="absolute top-2 left-2 px-2 py-0.5 bg-teal-500/90 text-white text-[9px] font-bold rounded shadow-sm z-20 flex items-center gap-1">
+                    <Monitor size={10}/>
+                    <span>PREVIEW</span>
+                </div>
+            )}
+            
             {!content ? (
                 <div className="absolute inset-2 border-2 border-dashed border-gray-200 dark:border-gray-700 rounded-xl flex flex-col items-center justify-center gap-3 text-gray-400 dark:text-gray-600 bg-gray-50/50 dark:bg-gray-900/50">
                     <div className="p-3 bg-white dark:bg-gray-800 rounded-full shadow-sm border border-gray-100 dark:border-gray-700 group-hover:scale-110 transition-transform duration-300">
                         <Monitor size={20} className="text-teal-500 opacity-80"/>
                     </div>
                     <div className="text-center px-4">
-                        <p className="text-xs font-bold text-gray-500 dark:text-gray-400 mb-0.5">{t.placeholders.waiting_input || "Waiting for signal"}</p>
-                        <p className="text-[10px] text-gray-400 dark:text-gray-500 leading-tight">Connect any generator to preview</p>
+                        <p className="text-xs font-bold text-gray-500 dark:text-gray-400 mb-0.5">{t.placeholders.waiting_input || "等待输入"}</p>
+                        <p className="text-[10px] text-gray-400 dark:text-gray-500 leading-tight">连接任意生成器以预览</p>
                     </div>
                 </div>
             ) : isImageContent(content) ? (
                 <>
                     <img src={content} className="w-full h-full object-contain" />
-                    <button onClick={(e) => handleDownload(e, content, `preview_${node.id}.png`)} className="absolute bottom-3 right-3 p-1.5 bg-white shadow-md border border-gray-200 text-gray-700 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity hover:bg-gray-50 z-10"><Download size={14}/></button>
+                    
+                    {/* 信息按钮 */}
+                    {imageDimensions && (
+                        <button 
+                            onMouseDown={(e: React.MouseEvent) => e.stopPropagation()}
+                            onClick={(e: React.MouseEvent) => {
+                                e.stopPropagation();
+                                setShowInfo(!showInfo);
+                            }} 
+                            className="absolute top-2 right-2 p-1.5 bg-black/60 text-white rounded-lg opacity-0 group-hover:opacity-100 transition-opacity hover:bg-black/80 z-20"
+                        >
+                            <Info size={12}/>
+                        </button>
+                    )}
+                    
+                    {/* 信息面板 */}
+                    {showInfo && imageDimensions && (
+                        <div className="absolute top-12 right-2 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 p-3 z-30 text-xs" onMouseDown={(e: React.MouseEvent) => e.stopPropagation()}>
+                            <div className="font-bold text-gray-700 dark:text-gray-300 mb-2">图片信息</div>
+                            <div className="space-y-1 text-gray-600 dark:text-gray-400">
+                                <div>尺寸: {imageDimensions.width} × {imageDimensions.height}</div>
+                                <div>比例: {(imageDimensions.width / imageDimensions.height).toFixed(2)}</div>
+                            </div>
+                        </div>
+                    )}
+                    
+                    <button onClick={(e: React.MouseEvent) => handleDownload(e, content, `preview_${node.id}.png`)} className="absolute bottom-3 right-3 p-1.5 bg-white shadow-md border border-gray-200 text-gray-700 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity hover:bg-gray-50 z-10"><Download size={14}/></button>
                 </>
             ) : (content.startsWith('data:video') || content.match(/\.(mp4|webm)$/i) || content.startsWith('blob:')) ? (
                 <>
                     <SimpleVideoPlayer src={content} className="w-full h-full" />
-                    <button onClick={(e) => handleDownload(e, content, `preview_${node.id}.mp4`)} className="absolute bottom-16 right-3 p-1.5 bg-white shadow-md border border-gray-200 text-gray-700 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity hover:bg-gray-50 z-30"><Download size={14}/></button>
+                    <button onClick={(e: React.MouseEvent) => handleDownload(e, content, `preview_${node.id}.mp4`)} className="absolute bottom-16 right-3 p-1.5 bg-white shadow-md border border-gray-200 text-gray-700 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity hover:bg-gray-50 z-30"><Download size={14}/></button>
                 </>
             ) : (
                 <div className={`text-xs p-4 rounded-none border-none overflow-auto custom-scrollbar relative group/text bg-gray-50 dark:bg-gray-800 text-gray-800 dark:text-gray-200 font-medium h-full transition-all`} style={{ fontSize: isExpanded ? '14px' : '12px' }}>
                     <div className="whitespace-pre-wrap pr-4 leading-relaxed">{content}</div>
-                    <button onClick={(e) => handleCopy(e, content, () => setIsCopied(true))} className="absolute bottom-3 right-3 p-1.5 bg-white dark:bg-gray-700 text-gray-600 dark:text-gray-300 rounded-lg opacity-0 group-hover/text:opacity-100 transition-opacity hover:bg-gray-50 dark:hover:bg-gray-600 shadow-md border border-gray-200 dark:border-gray-600">
+                    <button onClick={(e: React.MouseEvent) => handleCopy(e, content, () => setIsCopied(true))} className="absolute bottom-3 right-3 p-1.5 bg-white dark:bg-gray-700 text-gray-600 dark:text-gray-300 rounded-lg opacity-0 group-hover/text:opacity-100 transition-opacity hover:bg-gray-50 dark:hover:bg-gray-600 shadow-md border border-gray-200 dark:border-gray-600">
                         <Copy size={14}/>
                     </button>
                 </div>
@@ -189,7 +238,7 @@ export const ImageInputView: React.FC<NodeViewProps> = ({ node, contentHeight, t
                     <>
                         <img src={node.data.value} className="w-full h-full object-cover" draggable={false} onMouseDown={(e) => e.preventDefault()} />
                         <div className="absolute top-2 left-2 text-white/90 text-[9px] font-bold px-2 py-0.5 bg-black/40 rounded backdrop-blur-sm">Asset</div>
-                        <button onClick={(e) => handleDownload(e, node.data.value!, `ref_image_${node.id}.png`)} className="absolute bottom-3 right-3 p-1.5 bg-white shadow-md border border-gray-200 text-gray-700 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity hover:bg-gray-50 z-10"><Download size={14}/></button>
+                        <button onClick={(e: React.MouseEvent) => handleDownload(e, node.data.value!, `ref_image_${node.id}.png`)} className="absolute bottom-3 right-3 p-1.5 bg-white shadow-md border border-gray-200 text-gray-700 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity hover:bg-gray-50 z-10"><Download size={14}/></button>
                     </>
                 ) : (
                     <div className="absolute inset-0 p-4 text-xs text-gray-500 dark:text-gray-400 overflow-auto flex items-center justify-center text-center">
@@ -219,7 +268,7 @@ export const CharacterRefView: React.FC<NodeViewProps> = ({ node, isExpanded, co
                       isImageContent(node.data.value) ? (
                           <>
                             <img src={node.data.value} className="w-full h-full object-cover" draggable={false} onMouseDown={(e) => e.preventDefault()} />
-                            <button onClick={(e) => handleDownload(e, node.data.value!, `char_${node.id}.png`)} className="absolute bottom-1 right-1 p-1 bg-black/50 text-white rounded-md opacity-0 group-hover:opacity-100 transition-opacity hover:bg-black/70 z-10"><Download size={10}/></button>
+                            <button onClick={(e: React.MouseEvent) => handleDownload(e, node.data.value!, `char_${node.id}.png`)} className="absolute bottom-1 right-1 p-1 bg-black/50 text-white rounded-md opacity-0 group-hover:opacity-100 transition-opacity hover:bg-black/70 z-10"><Download size={10}/></button>
                           </>
                       ) : (
                           <div className="w-full h-full p-1 text-[8px] overflow-auto text-gray-500 flex items-center justify-center text-center leading-tight">
@@ -248,7 +297,47 @@ export const CharacterRefView: React.FC<NodeViewProps> = ({ node, isExpanded, co
     );
 };
 
-export const ImageGenView: React.FC<NodeViewProps> = ({ node, contentHeight, zoom, settings }) => {
+export const ImageGenView: React.FC<NodeViewProps> = ({ node, contentHeight, zoom, settings, onUpdateData }) => {
+    const [showPrompt, setShowPrompt] = useState(false);
+    const [refineInput, setRefineInput] = useState('');
+    const [isRefining, setIsRefining] = useState(false);
+    
+    // 润色提示词的处理函数
+    const handleRefinePrompt = async () => {
+        if (!refineInput.trim() || isRefining) return;
+        
+        setIsRefining(true);
+        try {
+            const { generateTextViaGateway } = await import('../../../services/aiGatewayService');
+            const currentPrompt = node.data.settings?.value || node.data.value || '';
+            
+            const refinedPrompt = await generateTextViaGateway({
+                model: 'gpt-4o-mini',
+                systemPrompt: '你是一个专业的图像生成提示词优化助手。根据用户的要求，优化和改进提示词，使其更适合图像生成。直接返回优化后的提示词，不要添加任何解释或额外内容。',
+                prompt: `当前提示词：\n${currentPrompt}\n\n润色要求：\n${refineInput.trim()}`,
+                temperature: 0.7
+            });
+            
+            // 更新节点的提示词
+            if (onUpdateData) {
+                onUpdateData(node.id, {
+                    settings: {
+                        ...node.data.settings,
+                        value: refinedPrompt
+                    }
+                });
+            }
+            
+            setRefineInput('');
+            setShowPrompt(false);
+        } catch (error) {
+            console.error('Failed to refine prompt:', error);
+            alert('润色失败，请重试');
+        } finally {
+            setIsRefining(false);
+        }
+    };
+    
     // Determine Model Label
     const modelId = node.data.settings?.model;
     const modelObj = MODELS.find(m => m.id === modelId);
@@ -261,13 +350,14 @@ export const ImageGenView: React.FC<NodeViewProps> = ({ node, contentHeight, zoo
         modelLabel = parts
             .replace(/-preview$/, '')
             .replace(/-/g, ' ')
-            .replace(/\b\w/g, c => c.toUpperCase())
+            .replace(/\b\w/g, (c: string) => c.toUpperCase())
             .trim();
     }
 
     const size = node.data.settings?.size;
     const resolution = node.data.settings?.resolution;
     const aspectRatio = node.data.settings?.aspectRatio;
+    const prompt = node.data.settings?.value || node.data.value || '';
     
     // Loading 时显示的尺寸信息：
     // - 有 aspectRatio → 显示比例（+ resolution 如果有）
@@ -311,7 +401,91 @@ export const ImageGenView: React.FC<NodeViewProps> = ({ node, contentHeight, zoo
                     isImageContent(node.data.outputResult) ? (
                         <>
                             <img src={node.data.outputResult} className="w-full h-full object-contain" draggable={false} onMouseDown={(e) => e.preventDefault()} /> 
-                            <button onClick={(e) => handleDownload(e, node.data.outputResult!, `gen_image_${node.id}.png`)} className="absolute bottom-2 right-2 p-1.5 bg-white shadow-sm border border-gray-200 text-gray-700 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity hover:bg-gray-50 z-20 scale-90"><Download size={14}/></button>
+                            
+                            {/* 提示词按钮 */}
+                            {prompt && (
+                                <button 
+                                    onMouseDown={(e: React.MouseEvent) => e.stopPropagation()}
+                                    onClick={(e: React.MouseEvent) => {
+                                        e.stopPropagation();
+                                        setShowPrompt(!showPrompt);
+                                    }}
+                                    className="absolute top-2 left-2 px-2.5 py-1.5 bg-black/70 hover:bg-black/90 text-white text-[11px] font-medium rounded-lg transition-all hover:scale-105 z-20 flex items-center gap-1.5 shadow-lg opacity-100 group-hover:opacity-100"
+                                    style={{ pointerEvents: 'auto' }}
+                                >
+                                    <FileText size={11}/>
+                                    <span>提示词</span>
+                                </button>
+                            )}
+                            
+                            {/* 提示词弹窗 - 润色对话框 */}
+                            {showPrompt && prompt && (
+                                <div 
+                                    className="absolute top-14 left-2 right-2 bg-white dark:bg-gray-900 rounded-xl shadow-2xl border-2 border-purple-200 dark:border-purple-800 z-30 flex flex-col"
+                                    style={{ maxHeight: '70%' }}
+                                    onMouseDown={(e: React.MouseEvent) => e.stopPropagation()}
+                                    onClick={(e: React.MouseEvent) => e.stopPropagation()}
+                                >
+                                    {/* 标题栏 */}
+                                    <div className="flex items-center justify-between p-4 border-b border-gray-100 dark:border-gray-800">
+                                        <div className="font-bold text-gray-800 dark:text-gray-200 text-sm flex items-center gap-2">
+                                            <div className="p-1.5 bg-purple-100 dark:bg-purple-900/30 rounded-lg">
+                                                <FileText size={14} className="text-purple-600 dark:text-purple-400"/>
+                                            </div>
+                                            <span>提示词润色</span>
+                                        </div>
+                                        <button 
+                                            onClick={(e: React.MouseEvent) => {
+                                                e.stopPropagation();
+                                                setShowPrompt(false);
+                                                setRefineInput('');
+                                            }}
+                                            className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 text-lg leading-none w-6 h-6 flex items-center justify-center hover:bg-gray-100 dark:hover:bg-gray-800 rounded transition-colors"
+                                        >
+                                            ✕
+                                        </button>
+                                    </div>
+                                    
+                                    {/* 当前提示词 */}
+                                    <div className="p-4 overflow-auto custom-scrollbar flex-1">
+                                        <div className="text-[10px] font-bold text-gray-500 dark:text-gray-400 mb-2 uppercase tracking-wide">当前提示词</div>
+                                        <div className="text-xs text-gray-700 dark:text-gray-300 whitespace-pre-wrap leading-relaxed bg-purple-50 dark:bg-purple-900/20 p-3 rounded-lg border border-purple-100 dark:border-purple-800 mb-4">
+                                            {prompt}
+                                        </div>
+                                        
+                                        {/* 润色输入区 */}
+                                        <div className="text-[10px] font-bold text-gray-500 dark:text-gray-400 mb-2 uppercase tracking-wide">润色指令</div>
+                                        <div className="relative">
+                                            <textarea
+                                                value={refineInput}
+                                                onChange={(e) => setRefineInput(e.target.value)}
+                                                placeholder="输入润色要求，例如：让画面更有电影感、增加细节描述、改成日系风格..."
+                                                className="w-full h-20 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-2.5 text-xs text-gray-700 dark:text-gray-300 placeholder:text-gray-400 dark:placeholder:text-gray-600 resize-none focus:outline-none focus:ring-2 focus:ring-purple-500/50 focus:border-purple-500"
+                                                onKeyDown={(e) => {
+                                                    if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+                                                        e.preventDefault();
+                                                        if (refineInput.trim() && !isRefining) {
+                                                            handleRefinePrompt();
+                                                        }
+                                                    }
+                                                }}
+                                            />
+                                            <div className="text-[9px] text-gray-400 dark:text-gray-500 mt-1.5 flex items-center justify-between">
+                                                <span>按 Cmd/Ctrl + Enter 发送</span>
+                                                <button
+                                                    onClick={handleRefinePrompt}
+                                                    disabled={!refineInput.trim() || isRefining}
+                                                    className="px-3 py-1.5 bg-purple-500 hover:bg-purple-600 disabled:bg-gray-300 dark:disabled:bg-gray-700 text-white text-[10px] font-medium rounded-lg transition-colors disabled:cursor-not-allowed"
+                                                >
+                                                    {isRefining ? '润色中...' : '润色'}
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+                            
+                            <button onClick={(e: React.MouseEvent) => handleDownload(e, node.data.outputResult!, `gen_image_${node.id}.png`)} className="absolute bottom-2 right-2 p-1.5 bg-white shadow-sm border border-gray-200 text-gray-700 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity hover:bg-gray-50 z-20 scale-90"><Download size={14}/></button>
                         </>
                     ) : (
                         <div className="absolute inset-0 p-4 text-xs text-gray-500 dark:text-gray-400 overflow-auto flex items-center justify-center text-center bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-700">
@@ -369,7 +543,7 @@ export const ImageUpscaleView: React.FC<NodeViewProps> = ({ node, contentHeight 
                         <img src={node.data.outputResult} className="w-full h-full object-contain" draggable={false} onMouseDown={(e) => e.preventDefault()} />
                         
                         <div className="absolute top-2 left-2 px-2 py-0.5 bg-orange-500 text-white text-[10px] font-bold rounded shadow-sm z-20">4K</div>
-                        <button onClick={(e) => handleDownload(e, node.data.outputResult!, `upscaled_${node.id}.png`)} className="absolute bottom-3 right-3 p-1.5 bg-white shadow-md border border-gray-200 text-gray-700 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity hover:bg-gray-50 z-20"><Download size={14}/></button>
+                        <button onClick={(e: React.MouseEvent) => handleDownload(e, node.data.outputResult!, `upscaled_${node.id}.png`)} className="absolute bottom-3 right-3 p-1.5 bg-white shadow-md border border-gray-200 text-gray-700 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity hover:bg-gray-50 z-20"><Download size={14}/></button>
                     </>
                 ) : (
                     <div className="absolute inset-0 p-4 text-xs text-gray-500 dark:text-gray-400 overflow-auto flex items-center justify-center text-center bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-700">

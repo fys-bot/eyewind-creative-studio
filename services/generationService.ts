@@ -113,6 +113,13 @@ export const generateVideo = async (config: VideoConfig & { characterNames?: str
 export const generateImage = async (config: ImageConfig): Promise<string> => {
     const actualModel = resolveModel(config.model, 'image');
 
+    console.log('[generateImage] 收到参数:', {
+        model: actualModel,
+        promptLen: config.prompt?.length,
+        referenceImages: config.referenceImages?.length || 0,
+        refPreview: config.referenceImages?.[0]?.substring(0, 50) || 'none'
+    });
+
     if (actualModel.startsWith('SIMULATION:')) {
         return simulateGeneration(actualModel, 'image', config.prompt);
     }

@@ -193,7 +193,12 @@ export const generateImageViaGateway = async (params: {
     referenceImages?: string[];
 }): Promise<string> => {
     try {
-        console.log('[AI Gateway] Image input:', params);
+        console.log('[AI Gateway] Image input:', {
+            model: params.model,
+            promptLen: params.prompt?.length,
+            referenceImages: params.referenceImages?.length || 0,
+            refPreview: params.referenceImages?.[0]?.substring(0, 50) || 'none'
+        });
         const headers = await buildHeaders();
 
         // 获取该模型的 API Schema
@@ -203,17 +208,134 @@ export const generateImageViaGateway = async (params: {
 
         const paramMap = new Map(apiParams.map(p => [p.name, p]));
 
-        // 构建请求体 — 参考图片链接拼到 prompt 里，模型会自动识别
-        let finalPrompt = params.prompt;
-        if (params.referenceImages && params.referenceImages.length > 0) {
-            const refs = params.referenceImages.filter(url => url.startsWith('http'));
-            if (refs.length === 1) {
-                finalPrompt = `Based on the reference image: ${refs[0]}\n\n${finalPrompt}`;
-            } else if (refs.length > 1) {
-                const refList = refs.map((url, i) => `Reference image ${i + 1}: ${url}`).join('\n');
-                finalPrompt = `${refList}\n\n${finalPrompt}`;
+        // 收集参考图
+        const refImages = params.referenceImages || [];
+        const base64Refs = refImages.filter(img => img.startsWith('data:image'));
+        const urlRefs = refImages.filter(img => img.startsWith('http'));
+        const allRefs = [...base64Refs, ...urlRefs];
+        
+        console.log('[AI Gateway] 参考图统计:', { base64: base64Refs.length, url: urlRefs.length, total: allRefs.length });
+
+        // ========== 有参考图时：使用 chat completions 端点（vision 模式） ==========
+        if (allRefs.length > 0) {
+            console.log('[AI Gateway] 使用 chat completions 模式传递参考图');
+            
+            // 构建 multimodal content
+            const userContent: any[] = [];
+            
+            // 添加参考图
+            for (const ref of allRefs) {
+                if (ref.startsWith('data:image')) {
+                    // base64 格式
+                    userContent.push({
+                        type: 'image_url',
+                        image_url: { url: ref }
+                    });
+                } else {
+                    // URL 格式
+                    userContent.push({
+                        type: 'image_url',
+                        image_url: { url: ref }
+                    });
+                }
             }
+            
+            // 添加文本提示
+            userContent.push({
+                type: 'text',
+                text: params.prompt
+            });
+
+            // 尺寸参数
+            const sizeInfo: string[] = [];
+            if (params.aspectRatio) sizeInfo.push(`aspect ratio: ${params.aspectRatio}`);
+            if (params.resolution) sizeInfo.push(`resolution: ${params.resolution}`);
+            if (params.size) sizeInfo.push(`size: ${params.size}`);
+
+            const requestBody: any = {
+                model: params.model,
+                messages: [
+                    {
+                        role: 'user',
+                        content: userContent
+                    }
+                ],
+            };
+
+            // 添加图片生成相关参数
+            if (paramMap.has('aspect_ratio')) {
+                requestBody.aspect_ratio = params.aspectRatio || paramMap.get('aspect_ratio')!.default || '1:1';
+            }
+            if (paramMap.has('resolution')) {
+                requestBody.resolution = params.resolution || paramMap.get('resolution')!.default || '1K';
+            }
+
+            console.log('[AI Gateway] Chat completions request:', {
+                model: requestBody.model,
+                messageContentTypes: userContent.map(c => c.type),
+                hasAspectRatio: !!requestBody.aspect_ratio,
+            });
+
+            const response = await fetch(`${API_BASE_URL}/chat/completions`, {
+                method: 'POST',
+                headers,
+                body: JSON.stringify(requestBody)
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json().catch(() => ({}));
+                throw new Error(`Image edit failed: ${response.status} ${errorData.error?.message || JSON.stringify(errorData) || response.statusText}`);
+            }
+
+            const data = await response.json();
+            console.log('[AI Gateway] Chat completions response keys:', Object.keys(data));
+            
+            // 从 chat completions 响应中提取图片
+            // 格式1: choices[0].message.content 包含图片 URL 或 base64
+            const content = data.choices?.[0]?.message?.content;
+            if (content) {
+                // 如果 content 是字符串，可能直接是 URL 或 base64
+                if (typeof content === 'string') {
+                    if (content.startsWith('http') || content.startsWith('data:image')) {
+                        return content;
+                    }
+                    // 尝试从 markdown 格式提取图片 URL: ![...](url)
+                    const mdMatch = content.match(/!\[.*?\]\((https?:\/\/[^\s)]+)\)/);
+                    if (mdMatch) return mdMatch[1];
+                    
+                    // 尝试从文本中提取 URL
+                    const urlMatch = content.match(/(https?:\/\/[^\s"'<>]+\.(?:png|jpg|jpeg|gif|webp)[^\s"'<>]*)/i);
+                    if (urlMatch) return urlMatch[1];
+                }
+                // 如果 content 是数组（multimodal response）
+                if (Array.isArray(content)) {
+                    for (const part of content) {
+                        if (part.type === 'image_url' && part.image_url?.url) {
+                            return part.image_url.url;
+                        }
+                        if (part.type === 'image' && part.image?.url) {
+                            return part.image.url;
+                        }
+                    }
+                }
+            }
+            
+            // 格式2: 某些模型在 data 字段返回
+            if (data.data?.[0]?.url) return data.data[0].url;
+            if (data.data?.[0]?.b64_json) return `data:image/png;base64,${data.data[0].b64_json}`;
+            
+            // 格式3: job_id 异步模式
+            const jobId = data.job_id || data.id;
+            if (jobId && !data.choices) {
+                return await pollJob(jobId, 'image_url');
+            }
+            
+            console.error('[AI Gateway] 无法从响应中提取图片:', JSON.stringify(data).substring(0, 500));
+            throw new Error('No image returned from chat completions response');
         }
+
+        // ========== 无参考图时：使用标准 images/generations 端点 ==========
+        let finalPrompt = params.prompt;
 
         let requestBody: any = {
             model: params.model,
@@ -268,18 +390,6 @@ export const generateImageViaGateway = async (params: {
             requestBody.async_mode = true;
         }
 
-        // reference_image — 如果 schema 明确支持，也通过专用字段传递（双保险）
-        if (params.referenceImages && params.referenceImages.length > 0) {
-            const refUrl = params.referenceImages[0];
-            if (paramMap.has('reference_image')) {
-                requestBody.reference_image = refUrl;
-            } else if (paramMap.has('image_url')) {
-                requestBody.image_url = refUrl;
-            } else if (paramMap.has('image')) {
-                requestBody.image = refUrl;
-            }
-        }
-
         // 验证
         if (schema) {
             const validation = validateRequestWithSchema(requestBody, schema);
@@ -288,7 +398,16 @@ export const generateImageViaGateway = async (params: {
             }
         }
 
-        console.log('[AI Gateway] Image request:', requestBody);
+        console.log('[AI Gateway] Image request:', {
+            model: requestBody.model,
+            promptLen: requestBody.prompt?.length,
+            hasImage: !!requestBody.image,
+            hasReferenceImage: !!requestBody.reference_image,
+            hasReferenceImages: !!requestBody.reference_images,
+            size: requestBody.size || requestBody.image_size,
+            aspectRatio: requestBody.aspect_ratio,
+            resolution: requestBody.resolution,
+        });
 
         const apiPath = endpoint.replace(/^\/v1/, '');
         const response = await fetch(`${API_BASE_URL}${apiPath}`, {
